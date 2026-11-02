@@ -1,17 +1,5 @@
-# macOS
-.DS_Store
-*.swp
-*~
-
-# Swift / SPM
 .build/
+dist/
+.swiftpm/
+.DS_Store
 build/
-DerivedData/
-Packages/
-*.xcodeproj
-*.xcworkspace
-
-# Secrets & Configs
-*.secret
-*.key
-*.token

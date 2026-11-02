@@ -59,7 +59,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         
         button.image = img
-        button.toolTip = "AI Usages\n· OpenCode Go: \(Int(oc.remainingPercent))% 남음 (\(oc.openCodeWindows.monthlyResetString))\n· Google AI Pro: \(Int(g.remainingPercent))% 남음 (\(g.googleGroups.nextBillingDateString))\n클릭하여 상세 보기"
+        button.toolTip = "AI Usages\n· OpenCode Go: \(Int(oc.remainingPercent))% \(L10n.remaining) (\(oc.openCodeWindows.monthlyResetString))\n· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining) (\(g.googleGroups.nextBillingDateString))"
     }
     
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
@@ -82,13 +82,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func showContextMenu(_ sender: NSStatusBarButton) {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "AI Usages 새로고침", action: #selector(refreshClicked), keyEquivalent: "r"))
+        menu.addItem(NSMenuItem(title: L10n.refreshApp, action: #selector(refreshClicked), keyEquivalent: "r"))
+        menu.addItem(NSMenuItem(title: L10n.checkForUpdates, action: #selector(checkUpdatesClicked), keyEquivalent: "u"))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "AI Usages 종료", action: #selector(quitApp), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: L10n.quitApp, action: #selector(quitApp), keyEquivalent: "q"))
         
         sender.menu = menu
         sender.performClick(nil)
         sender.menu = nil
+    }
+    
+    @objc private func checkUpdatesClicked() {
+        UpdaterViewModel.shared.checkForUpdatesPresentingAlert()
     }
     
     @objc private func refreshClicked() {

@@ -4,6 +4,9 @@ public struct DetailPopoverView: View {
     @ObservedObject var usageManager = UsageManager.shared
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject var launchAtLogin = LaunchAtLoginManager.shared
+    @ObservedObject var updater = UpdaterViewModel.shared
+    
+    private let coffeeURL = URL(string: "https://buymeacoffee.com/dwyi84d")!
     
     public init() {}
     
@@ -11,14 +14,32 @@ public struct DetailPopoverView: View {
         VStack(spacing: 0) {
             // MARK: - Header
             HStack(spacing: 8) {
-                Text("AI Usages")
+                Text(L10n.appTitle)
                     .font(.system(size: 13, weight: .bold))
                 
-                Text(formatTime(usageManager.lastRefreshedAt))
-                    .font(.system(size: 10))
+                Text("v\(UpdaterViewModel.currentVersion) · \(formatTime(usageManager.lastRefreshedAt))")
+                    .font(.system(size: 9.5))
                     .foregroundColor(.secondary)
                 
                 Spacer()
+                
+                // Update Pill if update is available
+                if updater.updateState == .updateAvailable, let newVer = updater.pendingUpdateVersion {
+                    Button(action: {
+                        updater.presentUpdateConfirmation()
+                    }) {
+                        HStack(spacing: 4) {
+                            Circle().fill(Color.orange).frame(width: 6, height: 6)
+                            Text("v\(newVer) \(L10n.updateAvailable)")
+                                .font(.system(size: 9, weight: .semibold))
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.15))
+                        .cornerRadius(4)
+                    }
+                    .buttonStyle(.plain)
+                }
                 
                 Button(action: {
                     Task {
@@ -31,7 +52,7 @@ public struct DetailPopoverView: View {
                         .animation(usageManager.isRefreshing ? Animation.linear(duration: 1.0).repeatForever(autoreverses: false) : .default, value: usageManager.isRefreshing)
                 }
                 .buttonStyle(.plain)
-                .help("새로고침")
+                .help(L10n.refreshTooltip)
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
@@ -54,18 +75,18 @@ public struct DetailPopoverView: View {
             
             Divider()
             
-            // MARK: - Footer (설정 메뉴를 별도 창/화면 없이 하단에 간결하게 통합)
+            // MARK: - Footer (설정, 커피 후원, 자동 시작, 업데이트 확인)
             VStack(spacing: 8) {
                 HStack(spacing: 8) {
-                    Text("자동 갱신:")
+                    Text(L10n.autoRefresh)
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.secondary)
                     
                     Picker("", selection: $settings.refreshIntervalSeconds) {
-                        Text("15초").tag(15.0)
-                        Text("30초").tag(30.0)
-                        Text("1분").tag(60.0)
-                        Text("5분").tag(300.0)
+                        Text(L10n.sec15).tag(15.0)
+                        Text(L10n.sec30).tag(30.0)
+                        Text(L10n.min1).tag(60.0)
+                        Text(L10n.min5).tag(300.0)
                     }
                     .pickerStyle(.segmented)
                     .controlSize(.mini)
@@ -76,7 +97,23 @@ public struct DetailPopoverView: View {
                     
                     Spacer()
                     
-                    Button("종료") {
+                    // Buy Me a Coffee Button
+                    Link(destination: coffeeURL) {
+                        HStack(spacing: 4) {
+                            Text("☕")
+                                .font(.system(size: 10))
+                            Text(L10n.buyMeACoffee)
+                                .font(.system(size: 9.5, weight: .semibold))
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color(red: 1.0, green: 0.87, blue: 0.0))
+                        .foregroundColor(.black)
+                        .cornerRadius(5)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(L10n.quit) {
                         NSApplication.shared.terminate(nil)
                     }
                     .font(.system(size: 10))
@@ -85,16 +122,21 @@ public struct DetailPopoverView: View {
                 }
                 
                 HStack {
-                    Toggle("로그인 시 자동 시작", isOn: $launchAtLogin.isEnabled)
+                    Toggle(L10n.launchAtLogin, isOn: $launchAtLogin.isEnabled)
                         .toggleStyle(.checkbox)
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     
                     Spacer()
                     
-                    Text("설치 위치: /Applications")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary.opacity(0.6))
+                    Button(action: {
+                        updater.checkForUpdatesPresentingAlert()
+                    }) {
+                        Text(L10n.checkForUpdates)
+                            .font(.system(size: 9.5))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.borderless)
                 }
             }
             .padding(.horizontal, 14)
@@ -120,7 +162,7 @@ struct OpenCodeSectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Go Subscription")
+                Text(L10n.openCodeTitle)
                     .font(.system(size: 12, weight: .bold))
                 
                 Spacer()
@@ -132,19 +174,19 @@ struct OpenCodeSectionView: View {
             
             VStack(spacing: 6) {
                 CleanProgressBar(
-                    title: "5-hour window",
+                    title: L10n.fiveHourWindow,
                     percent: windows.fiveHourRemainingPercent,
                     resetInfo: windows.fiveHourResetString
                 )
                 
                 CleanProgressBar(
-                    title: "Weekly",
+                    title: L10n.weekly,
                     percent: windows.weeklyRemainingPercent,
                     resetInfo: windows.weeklyResetString
                 )
                 
                 CleanProgressBar(
-                    title: "Monthly",
+                    title: L10n.monthly,
                     percent: windows.monthlyRemainingPercent,
                     resetInfo: windows.monthlyResetString
                 )
@@ -164,7 +206,7 @@ struct GoogleAISectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Google AI Pro")
+                Text(L10n.googleAITitle)
                     .font(.system(size: 12, weight: .bold))
                 
                 Spacer()
@@ -176,7 +218,7 @@ struct GoogleAISectionView: View {
             
             VStack(spacing: 6) {
                 GroupSplitRow(
-                    title: "Gemini Models",
+                    title: L10n.geminiModels,
                     weekly: groups.geminiWeeklyRemainingPercent,
                     weeklyInfo: groups.geminiWeeklyResetString,
                     fiveHour: groups.geminiFiveHourRemainingPercent,
@@ -184,7 +226,7 @@ struct GoogleAISectionView: View {
                 )
                 
                 GroupSplitRow(
-                    title: "Claude & GPT",
+                    title: L10n.claudeAndGpt,
                     weekly: groups.claudeWeeklyRemainingPercent,
                     weeklyInfo: groups.claudeWeeklyResetString,
                     fiveHour: groups.claudeFiveHourRemainingPercent,
@@ -192,7 +234,7 @@ struct GoogleAISectionView: View {
                 )
                 
                 CleanProgressBar(
-                    title: "Gemini 4 Argon",
+                    title: L10n.geminiArgon,
                     percent: groups.argonWeeklyRemainingPercent,
                     resetInfo: groups.argonWeeklyResetString
                 )
@@ -218,9 +260,9 @@ struct CleanProgressBar: View {
     
     var formattedPercent: String {
         if percent.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(format: "%.0f%% 남음", percent)
+            return String(format: "%.0f%% %@", percent, L10n.remaining)
         }
-        return String(format: "%.2f%% 남음", percent)
+        return String(format: "%.2f%% %@", percent, L10n.remaining)
     }
     
     var body: some View {
@@ -280,7 +322,7 @@ struct GroupSplitRow: View {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
-                        Text("Weekly:")
+                        Text(L10n.isKorean ? "주간:" : "Weekly:")
                             .font(.system(size: 9))
                             .foregroundColor(.secondary)
                         Spacer()
@@ -296,7 +338,7 @@ struct GroupSplitRow: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
-                        Text("5-Hour:")
+                        Text(L10n.isKorean ? "5시간:" : "5-Hour:")
                             .font(.system(size: 9))
                             .foregroundColor(.secondary)
                         Spacer()

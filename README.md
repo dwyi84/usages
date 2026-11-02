@@ -1,51 +1,85 @@
-# 🔋 Usages - AI Usage Menu Bar App for macOS
+# AI Usages
 
-macOS 메뉴바(툴바)에서 **OpenCode Go** 및 **Google AI Pro**의 월간 잔여 쿼터와 구독 갱신일을 **테두리 없는 초미니멀 세로 막대 칸(Segmented Vertical Bars)** 형태로 모니터링하고, 클릭 시 군더더기 없이 두 서비스의 세부 잔여 쿼터를 한눈에 확인할 수 있는 네이티브 macOS 애플리케이션입니다.
+A featherweight, native **macOS menu bar utility** for monitoring real-time quotas and subscription renewal countdowns for **OpenCode Go** and **Google AI Pro** (Gemini Models, Claude & GPT, Gemini 4 Argon).
 
----
-
-## ✨ 핵심 디자인 개편: Simple is the Best
-
-### 1. 테두리 없는 미니멀 세로 막대 칸 (Segmented Vertical Bars)
-- **테두리 전면 제거**: 거추장스러운 외곽 상자 테두리를 완전히 없앴습니다.
-- **여백 최소화**: 폭 약 10.5pt의 극도로 슬림하고 정갈한 2개의 세로 기둥으로 구성됩니다.
-- **세로 4칸 게이지 블록**:
-  - **[왼쪽 기둥]**: OpenCode Go 월간 잔여량 (36% 남음 → 2칸 활성)
-  - **[오른쪽 기둥]**: Google AI Pro 종합 잔여량 (81% 남음 → 4칸 활성)
-  - 잔여량이 줄어들면 아래 칸부터 줄어들며, **초록색(정상) → 주황색(주의) → 빨간색(임박)**으로 직관적 색상 전환
-
-### 2. 메뉴 하단에 통합된 원터치 설정 (No Popups, No Clutter)
-- 별도 화면 전환이나 팝업 창 없이, **메뉴 팝오버 최하단에 한 줄 미니멀 피커**로 배치:
-  `자동 갱신: [15초] [30초] [1분] [5분]`
-- 과도한 설명 텍스트를 전면 삭제하여 심플함과 가독성을 극대화했습니다.
-
-### 3. 실제 서비스 데이터 스키마 1:1 완벽 정렬
-- **OpenCode Go (Go Subscription)**:
-  - `• Renews in 6d 13h`
-  - 5-hour window: 95.0% 남음 (`Resets in 3h 37m`)
-  - Weekly: 98.0% 남음 (`Resets in 6d 15h`)
-  - Monthly: 36.0% 남음 (`Resets in 6d 13h`)
-- **Google AI Pro**:
-  - `• Renews in 6d 13h`
-  - Gemini Models (Flash, Pro): Weekly 94.7% / 5-Hour 95.6%
-  - Claude & GPT Models: Weekly 100.0% / 5-Hour 100.0%
-  - Gemini 4 Argon: Weekly 59.3% 남음 (`Refreshes in 71h 20m`)
+[![Swift](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://www.swift.org)
+[![Platform](https://img.shields.io/badge/macOS-13%2B-1f6feb?logo=apple)](https://www.apple.com/macos)
+[![Architecture](https://img.shields.io/badge/Apple%20Silicon-arm64-purple)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-dwyi84d-FFDD00?logo=buymeacoffee&logoColor=black&style=flat-square)](https://buymeacoffee.com/dwyi84d)
 
 ---
 
-## 🚀 실행 및 설치
+## Highlights
+
+- **Twin Vertical Segmented Gauges** — borderless, razor-sharp Retina segmented bars in your menu bar. Left bar tracks OpenCode Go remaining quota, right bar tracks Google AI Pro remaining quota. Color dynamically shifts from vibrant battery green to amber (≤35%) and critical red (≤15%).
+- **Zero Authentication Hassle** — reads local credentials automatically. OpenCode uses your local SQLite session token, and Google AI synchronizes seamlessly via the local CLI background engine. No manual API keys required.
+- **Remaining Quota Oriented** — displays exact remaining percentages (`% remaining` / `% 남음`) rather than confusing used numbers.
+- **Dynamic Renewal & Refresh Timers** — live countdowns for 5-hour rolling windows, weekly quotas, and monthly billing subscription renew dates (`Refreshes in Xh Ym` / `Renews in Xd Yh`).
+- **Clean In-Menu Controls** — configurable refresh intervals (15s, 30s, 1m, 5m), one-click **Launch at Login**, and inline **Check for Updates**. No separate preference windows, no clutter.
+- **Bilingual Localization** — seamlessly adapts between English and Korean based on your macOS system language preferences.
+- **In-App GitHub Updates** — checks GitHub Releases, notifies of new releases, downloads the update, and replaces the app in place with automatic relaunch.
+
+---
+
+## Requirements
+
+- macOS 13 (Ventura) or later
+- Apple Silicon (arm64)
+- OpenCode CLI and/or Antigravity CLI logged in
+
+---
+
+## Installation
+
+### Homebrew (recommended)
 
 ```bash
-cd /Users/melissa/ws/usages
+brew install --cask dwyi84/tap/aiusages
+```
 
-# 실행
-./Scripts/run.sh
+This installs **AI Usages.app** to `/Applications`. Because the app is signed with an ad-hoc local certificate, Gatekeeper may prompt on first launch — right-click **AI Usages.app** and choose **Open**, or run:
 
-# /Applications 폴더에 설치
-./Scripts/install.sh
+```bash
+xattr -dr com.apple.quarantine "/Applications/AI Usages.app"
+```
+
+### Manual Download
+
+1. Download the latest `AIUsages-<version>.zip` from [Releases](https://github.com/dwyi84/usages/releases).
+2. Unzip and drag `AI Usages.app` into `/Applications`.
+3. Launch the app from Spotlight or Launchpad.
+
+### Build from Source
+
+```bash
+git clone https://github.com/dwyi84/usages.git
+cd usages
+make install
 ```
 
 ---
 
-## 🔒 GitHub 저장소
-- GitHub Private Repository: [https://github.com/dwyi84/usages](https://github.com/dwyi84/usages)
+## Privacy & Security
+
+AI Usages runs completely on your local machine:
+- **No Telemetry & No Tracking:** Zero analytics or tracking libraries.
+- **No Cloud Upload of Credentials:** Local session tokens and CLI engines are read locally and only used to query the official endpoints (`https://opencode.ai/zen/go/v1/usage` and Google's code assist prediction service).
+- **Network Requests:** Only queries your own quota status and optional GitHub Releases version checks.
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+---
+
+## Support
+
+If AI Usages helps you keep track of your AI quotas at a glance, consider buying me a coffee — it keeps the meters glowing! ☕
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-dwyi84d-FFDD00?logo=buymeacoffee&logoColor=black&style=for-the-badge)](https://buymeacoffee.com/dwyi84d)
+
+<p align="center">Crafted by MelissaSoft · Made with ❤️ on Apple Silicon.</p>
+<p align="center">Copyright © 2026 Dawoon Yi / MelissaSoft</p>
