@@ -1,6 +1,6 @@
 # AI Usages
 
-A featherweight, native **macOS menu bar utility** for monitoring real-time quotas and subscription renewal countdowns for **OpenCode Go** and **Google AI Pro** (Gemini Models, Claude & GPT, Gemini 4 Argon).
+A featherweight, native **macOS menu bar utility** for monitoring real-time quotas, token spend, and subscription renewal countdowns for **OpenCode Go**, **Google AI Pro** (Gemini Models, Claude & GPT, Gemini 4 Argon), and **OpenRouter**.
 
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://www.swift.org)
 [![Platform](https://img.shields.io/badge/macOS-13%2B-1f6feb?logo=apple)](https://www.apple.com/macos)
@@ -10,15 +10,22 @@ A featherweight, native **macOS menu bar utility** for monitoring real-time quot
 
 ---
 
+<p align="center">
+  <img src="assets/screenshot.png" width="420" alt="AI Usages Screenshot">
+</p>
+
+---
+
 ## Highlights
 
-- **Twin Vertical Segmented Gauges** — borderless, razor-sharp Retina segmented bars in your menu bar. Left bar tracks OpenCode Go remaining quota, right bar tracks Google AI Pro remaining quota. Color dynamically shifts from vibrant battery green to amber (≤35%) and critical red (≤15%).
-- **Zero Authentication Hassle** — reads local credentials automatically. OpenCode uses your local SQLite session token, and Google AI synchronizes seamlessly via the local CLI background engine. No manual API keys required.
-- **Remaining Quota Oriented** — displays exact remaining percentages (`% remaining` / `% 남음`) rather than confusing used numbers.
+- **Adaptive Vertical Segmented Gauges** — borderless, razor-sharp Retina segmented bars in your menu bar. Dynamically renders 1, 2, or 3 bars according to your active providers. Color automatically shifts from vibrant battery green to amber (≤35%) and critical red (≤15%).
+- **Dual Dashboard Modes** — seamlessly toggle between **Quotas (한도 쿼터)** for subscription models (OpenCode Go, Google AI Pro) and **Tokens & Cost (토큰 & 비용)** for pay-as-you-go APIs (OpenRouter balance, today/month spend, token volume).
+- **Hybrid Provider Management** — auto-detects locally installed developer tools (OpenCode SQLite DB, Antigravity CLI) with clear badges, placing active providers on top with easy checkbox controls.
+- **Lightweight High-Speed REST Engine** — queries Google Cloud Code and OpenCode endpoints directly via sub-second REST API calls (0.2s) with automatic CLI fallback, saving CPU and battery.
+- **Safe Rate-Limit Resilient Polling** — configurable intervals (1m, 3m, 5m default, 15m) with automatic exponential backoff on HTTP 429 and stale-while-revalidate caching.
 - **Dynamic Renewal & Refresh Timers** — live countdowns for 5-hour rolling windows, weekly quotas, and monthly billing subscription renew dates (`Refreshes in Xh Ym` / `Renews in Xd Yh`).
-- **Clean In-Menu Controls** — configurable refresh intervals (15s, 30s, 1m, 5m), one-click **Launch at Login**, and inline **Check for Updates**. No separate preference windows, no clutter.
+- **Clean In-Menu Controls** — one-click **Launch at Login**, inline **Check for Updates**, and Buy Me a Coffee support. No separate preference windows, no clutter.
 - **Bilingual Localization** — seamlessly adapts between English and Korean based on your macOS system language preferences.
-- **In-App GitHub Updates** — checks GitHub Releases, notifies of new releases, downloads the update, and replaces the app in place with automatic relaunch.
 
 ---
 
@@ -26,7 +33,7 @@ A featherweight, native **macOS menu bar utility** for monitoring real-time quot
 
 - macOS 13 (Ventura) or later
 - Apple Silicon (arm64)
-- OpenCode CLI and/or Antigravity CLI logged in
+- OpenCode CLI and/or Antigravity CLI logged in (or OpenRouter API key)
 
 ---
 
@@ -64,7 +71,7 @@ make install
 
 AI Usages runs completely on your local machine:
 - **No Telemetry & No Tracking:** Zero analytics or tracking libraries.
-- **No Cloud Upload of Credentials:** Local session tokens and CLI engines are read locally and only used to query the official endpoints (`https://opencode.ai/zen/go/v1/usage` and Google's code assist prediction service).
+- **No Cloud Upload of Credentials:** Local session tokens and CLI engines are read locally and only used to query the official endpoints (`https://opencode.ai/zen/go/v1/usage`, Google's code assist prediction service, and OpenRouter).
 - **Network Requests:** Only queries your own quota status and optional GitHub Releases version checks.
 
 ---
