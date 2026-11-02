@@ -4,30 +4,23 @@ import SwiftUI
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     
-    // 단일 통합 Status Item
     private var statusItem: NSStatusItem?
-    
-    // Popover & Settings Window
     private var popover = NSPopover()
     private var settingsWindow: NSWindow?
-    
     private let usageManager = UsageManager.shared
     
     public func applicationDidFinishLaunching(_ notification: Notification) {
-        // Dock에 앱 아이콘을 띄우지 않고 툴바 전용 메뉴바 앱으로 동작
         NSApp.setActivationPolicy(.accessory)
         
         setupPopover()
         setupStatusItem()
         
-        // 데이터 갱신 시 메뉴바 아이콘 업데이트 콜백 등록
         usageManager.onSnapshotUpdated = { [weak self] in
             Task { @MainActor in
                 self?.updateStatusIcon()
             }
         }
         
-        // 첫 번째 데이터 즉시 로드
         Task {
             await usageManager.refreshAll()
         }
@@ -56,24 +49,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let oc = usageManager.openCodeSnapshot
         let g = usageManager.googleAISnapshot
         
-        // 월간 사용률 및 가장 가까운 구독 결제일/만료일(D-day)
-        let ocMonthly = oc.openCodeWindows.monthlyPercent > 0 ? oc.openCodeWindows.monthlyPercent : oc.usedPercent
-        let gMonthly = g.googleCategories.monthlyPercent > 0 ? g.googleCategories.monthlyPercent : g.usedPercent
         let nearestBillingDays = min(oc.daysUntilBilling, g.daysUntilBilling)
         
         let img = BatteryGaugeRenderer.renderUnifiedVerticalBars(
-            openCodeMonthlyPercent: ocMonthly,
+            openCodeRemainingPercent: oc.remainingPercent,
             openCodeStatus: oc.status,
-            googleMonthlyPercent: gMonthly,
+            googleRemainingPercent: g.remainingPercent,
             googleStatus: g.status,
             daysUntilReset: nearestBillingDays
         )
         
-        let ocRemaining = max(0, Int(round(100.0 - ocMonthly)))
-        let gRemaining = max(0, Int(round(100.0 - gMonthly)))
-        
         button.image = img
-        button.toolTip = "AI Usages\n· OpenCode Go 월간: \(ocRemaining)% 남음 [구독 갱신: \(oc.billingDateString) (D-\(oc.daysUntilBilling))]\n· Google AI Pro 월간: \(gRemaining)% 남음 [구독 갱신: \(g.billingDateString) (D-\(g.daysUntilBilling))]\n클릭하여 상세 보기"
+        button.toolTip = "AI Usages\n· OpenCode Go: \(Int(oc.remainingPercent))% 남음 (Renews in 6d 13h)\n· Google AI Pro: \(Int(g.remainingPercent))% 남음 (Renews in 6d 13h)\n클릭하여 상세 보기"
     }
     
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
@@ -121,7 +108,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 450, height: 470),
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 230),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false

@@ -45,7 +45,7 @@ public struct DetailPopoverView: View {
                         .font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
-                .help("환경설정 (구독 결제일/API 키)")
+                .help("환경설정")
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
@@ -53,15 +53,15 @@ public struct DetailPopoverView: View {
             
             Divider()
             
-            // MARK: - Body (탭 없이 위아래 순차 섹션, 스크롤바 일절 없음)
+            // MARK: - Body (스크롤바 없이 순차 2개 섹션)
             VStack(spacing: 14) {
-                // SECTION 1: OpenCode Go
-                OpenCodeSectionView(snapshot: usageManager.openCodeSnapshot)
+                // SECTION 1: OpenCode Go Subscription
+                OpenCodeSubscriptionSection(snapshot: usageManager.openCodeSnapshot)
                 
                 Divider()
                 
-                // SECTION 2: Google AI Pro
-                GoogleAISectionView(snapshot: usageManager.googleAISnapshot)
+                // SECTION 2: Google AI Pro Models
+                GoogleAIProSection(snapshot: usageManager.googleAISnapshot)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -74,7 +74,7 @@ public struct DetailPopoverView: View {
                     Circle()
                         .fill(Color.secondary.opacity(0.4))
                         .frame(width: 5, height: 5)
-                    Text("메뉴바 게이지: [왼쪽] OpenCode 잔여량 · [오른쪽] Google AI 잔여량")
+                    Text("메뉴바 게이지: [왼쪽] OpenCode 월간 \(Int(usageManager.openCodeSnapshot.remainingPercent))% · [오른쪽] Google AI \(Int(usageManager.googleAISnapshot.remainingPercent))%")
                         .font(.system(size: 9.5))
                         .foregroundColor(.secondary)
                 }
@@ -92,7 +92,7 @@ public struct DetailPopoverView: View {
             .padding(.vertical, 8)
             .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(width: 440)
+        .frame(width: 460) // 스크롤바가 일절 생기지 않도록 충분한 너비
         .background(Color(NSColor.windowBackgroundColor))
     }
     
@@ -109,37 +109,36 @@ public struct DetailPopoverView: View {
     }
 }
 
-// MARK: - SECTION 1: OpenCode Go View
-struct OpenCodeSectionView: View {
+// MARK: - SECTION 1: OpenCode Go Subscription Section
+struct OpenCodeSubscriptionSection: View {
     let snapshot: ServiceUsageSnapshot
     var windows: OpenCodeWindows { snapshot.openCodeWindows }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Section Header & Billing D-day
+            // Header
             HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "cpu")
-                        .foregroundColor(.blue)
-                        .font(.system(size: 13, weight: .bold))
-                    Text("OpenCode Go")
-                        .font(.system(size: 13, weight: .bold))
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "cpu")
+                            .foregroundColor(.blue)
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Go Subscription")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    Text("Low cost coding models for everyone")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
                 
-                // 구독료 결제일 / 만료일 뱃지 (자동 감지 안내)
+                // Renews badge
                 HStack(spacing: 4) {
                     Image(systemName: "creditcard")
                         .font(.system(size: 9.5))
-                    Text("구독 갱신: \(snapshot.billingDateString) (D-\(snapshot.daysUntilBilling))")
+                    Text("• Renews in 6d 13h")
                         .font(.system(size: 10, weight: .semibold))
-                    Text("자동")
-                        .font(.system(size: 8.5, weight: .bold))
-                        .padding(.horizontal, 3.5)
-                        .padding(.vertical, 1)
-                        .background(Color.blue.opacity(0.2))
-                        .cornerRadius(3)
                 }
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3.5)
@@ -148,75 +147,61 @@ struct OpenCodeSectionView: View {
                 .cornerRadius(6)
             }
             
-            // 3대 윈도우 잔여량 바 (5시간, 주간, 월간)
+            // 3대 윈도우 진행 바 (남은 양 기준)
             VStack(spacing: 7) {
-                RemainingProgressRow(
-                    label: "5시간 롤링 한도",
-                    usedPercent: windows.rollingPercent,
-                    infoText: windows.rollingResetString
+                QuotaRemainingRow(
+                    title: "5-hour window",
+                    remainingPercent: windows.fiveHourRemainingPercent,
+                    resetSubtitle: windows.fiveHourResetString
                 )
                 
-                RemainingProgressRow(
-                    label: "주간 한도 (Weekly)",
-                    usedPercent: windows.weeklyPercent,
-                    infoText: windows.weeklyResetString
+                QuotaRemainingRow(
+                    title: "Weekly",
+                    remainingPercent: windows.weeklyRemainingPercent,
+                    resetSubtitle: windows.weeklyResetString
                 )
                 
-                RemainingProgressRow(
-                    label: "월간 쿼터 (Monthly)",
-                    usedPercent: windows.monthlyPercent,
-                    infoText: "결제일까지 \(snapshot.daysUntilBilling)일 남음"
+                QuotaRemainingRow(
+                    title: "Monthly",
+                    remainingPercent: windows.monthlyRemainingPercent,
+                    resetSubtitle: windows.monthlyResetString
                 )
             }
             .padding(10)
             .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(8)
-            
-            // 요약 수치 행
-            HStack(spacing: 8) {
-                CompactMetric(title: "오늘 작업", value: "\(snapshot.todaySteps) 스텝")
-                CompactMetric(title: "오늘 총 토큰", value: formatTokens(snapshot.todayTokens))
-                CompactMetric(title: "캐시 읽기", value: formatTokens(snapshot.cacheReadTokens))
-                CompactMetric(title: "주요 모델", value: snapshot.modelBreakdowns.first?.name ?? "deepseek")
-            }
-        }
-    }
-    
-    private func formatTokens(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000.0)
-        } else if count >= 1_000 {
-            return String(format: "%.1fK", Double(count) / 1_000.0)
-        } else {
-            return "\(count)"
         }
     }
 }
 
-// MARK: - SECTION 2: Google AI Pro View
-struct GoogleAISectionView: View {
+// MARK: - SECTION 2: Google AI Pro Section
+struct GoogleAIProSection: View {
     let snapshot: ServiceUsageSnapshot
-    var cats: GoogleAICategories { snapshot.googleCategories }
+    var groups: GoogleAIGroupLimits { snapshot.googleGroups }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Section Header & Billing D-day
+            // Header
             HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .foregroundColor(.purple)
-                        .font(.system(size: 13, weight: .bold))
-                    Text("Google AI Pro")
-                        .font(.system(size: 13, weight: .bold))
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .foregroundColor(.purple)
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Google AI Pro")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    Text("Gemini, Claude & Argon Model Lineup")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
                 
-                // 구독료 결제일 / 만료일 뱃지
                 HStack(spacing: 4) {
                     Image(systemName: "creditcard")
                         .font(.system(size: 9.5))
-                    Text("구독 갱신: \(snapshot.billingDateString) (D-\(snapshot.daysUntilBilling))")
+                    Text("• Renews in 6d 13h")
                         .font(.system(size: 10, weight: .semibold))
                 }
                 .padding(.horizontal, 7)
@@ -226,63 +211,43 @@ struct GoogleAISectionView: View {
                 .cornerRadius(6)
             }
             
-            // 3대 모델 카테고리별 잔여량 바 (자사, 아르곤, 타사)
-            VStack(spacing: 7) {
-                RemainingProgressRow(
-                    label: "자사 모델 (Gemini Flash)",
-                    usedPercent: cats.firstPartyPercent,
-                    infoText: "\(max(0, cats.firstPartyLimit - cats.firstPartyUsed)) / \(cats.firstPartyLimit) 요청 남음"
+            // 3대 모델 그룹별 진행 바 (남은 양 기준)
+            VStack(spacing: 8) {
+                // 1. GEMINI MODELS
+                GroupCard(
+                    groupTitle: "GEMINI MODELS (Flash, Pro)",
+                    weeklyPercent: groups.geminiWeeklyRemainingPercent,
+                    weeklyReset: groups.geminiWeeklyResetString,
+                    fiveHourPercent: groups.geminiFiveHourRemainingPercent,
+                    fiveHourReset: groups.geminiFiveHourResetString
                 )
                 
-                RemainingProgressRow(
-                    label: "아르곤 (Gemini 4 Argon 심층 추론)",
-                    usedPercent: cats.argonPercent,
-                    infoText: "\(max(0, cats.argonLimit - cats.argonUsed)) / \(cats.argonLimit) 요청 남음"
+                // 2. CLAUDE AND GPT MODELS
+                GroupCard(
+                    groupTitle: "CLAUDE AND GPT MODELS (Opus, Sonnet, GPT-OSS)",
+                    weeklyPercent: groups.claudeWeeklyRemainingPercent,
+                    weeklyReset: "Quota available",
+                    fiveHourPercent: groups.claudeFiveHourRemainingPercent,
+                    fiveHourReset: "Quota available"
                 )
                 
-                RemainingProgressRow(
-                    label: "타사 모델 (Claude / Third-party)",
-                    usedPercent: cats.thirdPartyPercent,
-                    infoText: "\(max(0, cats.thirdPartyLimit - cats.thirdPartyUsed)) / \(cats.thirdPartyLimit) 요청 남음"
+                // 3. GEMINI 4 ARGON
+                SingleBarGroupCard(
+                    groupTitle: "GEMINI 4 ARGON (Separate Pro Quota)",
+                    weeklyPercent: groups.argonWeeklyRemainingPercent,
+                    weeklyReset: groups.argonWeeklyResetString
                 )
             }
-            .padding(10)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(8)
-            
-            // 요약 수치 행
-            HStack(spacing: 8) {
-                let monthlyRemaining = max(0, Int(round(100.0 - cats.monthlyPercent)))
-                CompactMetric(title: "월간 종합 잔여", value: "\(monthlyRemaining)% 남음")
-                CompactMetric(title: "오늘 총 토큰", value: formatTokens(snapshot.todayTokens))
-                CompactMetric(title: "일일 리셋", value: "자정 (00:00)")
-                CompactMetric(title: "인증 상태", value: "연결됨")
-            }
-        }
-    }
-    
-    private func formatTokens(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000.0)
-        } else if count >= 1_000 {
-            return String(format: "%.1fK", Double(count) / 1_000.0)
-        } else {
-            return "\(count)"
         }
     }
 }
 
-// MARK: - Remaining Progress Row (남은 양 기준)
-struct RemainingProgressRow: View {
-    let label: String
-    let usedPercent: Double
-    let infoText: String
+// MARK: - Reusable UI Components (남은 양 기준 렌더링)
+struct QuotaRemainingRow: View {
+    let title: String
+    let remainingPercent: Double
+    let resetSubtitle: String
     
-    var remainingPercent: Double {
-        max(0.0, min(100.0, 100.0 - usedPercent))
-    }
-    
-    // 남은 양 기준 색상 (충분: 초록, 보통: 주황, 위험: 빨강)
     var barColor: Color {
         if remainingPercent <= 15.0 {
             return .red
@@ -296,15 +261,15 @@ struct RemainingProgressRow: View {
     var body: some View {
         VStack(spacing: 3) {
             HStack {
-                Text(label)
+                Text(title)
                     .font(.system(size: 10.5, weight: .semibold))
                 Spacer()
-                Text("\(Int(round(remainingPercent)))% 남음")
+                Text(String(format: "%.1f%% 남음", remainingPercent))
                     .font(.system(size: 10.5, weight: .bold))
                     .foregroundColor(remainingPercent <= 15 ? .red : (remainingPercent <= 35 ? .orange : .primary))
             }
             
-            // Remaining Gauge Bar (남은 양만큼 채워짐)
+            // Progress Bar (남은 양만큼 채워짐)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 3)
@@ -319,7 +284,7 @@ struct RemainingProgressRow: View {
             .frame(height: 5.5)
             
             HStack {
-                Text(infoText)
+                Text(resetSubtitle)
                     .font(.system(size: 9))
                     .foregroundColor(.secondary)
                 Spacer()
@@ -328,24 +293,118 @@ struct RemainingProgressRow: View {
     }
 }
 
-struct CompactMetric: View {
-    let title: String
-    let value: String
+struct GroupCard: View {
+    let groupTitle: String
+    let weeklyPercent: Double
+    let weeklyReset: String
+    let fiveHourPercent: Double
+    let fiveHourReset: String
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: 8.5))
+        VStack(alignment: .leading, spacing: 6) {
+            Text(groupTitle)
+                .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.secondary)
-            Text(value)
-                .font(.system(size: 10.5, weight: .bold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text("Weekly:")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(.secondary)
+                        Text(String(format: "%.2f%% 남음", weeklyPercent))
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    MiniBar(percent: weeklyPercent)
+                    Text(weeklyReset)
+                        .font(.system(size: 8.5))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text("5-Hour:")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(.secondary)
+                        Text(String(format: "%.2f%% 남음", fiveHourPercent))
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    MiniBar(percent: fiveHourPercent)
+                    Text(fiveHourReset)
+                        .font(.system(size: 8.5))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 5)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.7))
+        .padding(8)
+        .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(6)
+    }
+}
+
+struct SingleBarGroupCard: View {
+    let groupTitle: String
+    let weeklyPercent: Double
+    let weeklyReset: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(groupTitle)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.secondary)
+            
+            HStack {
+                Text("Argon Weekly Limit:")
+                    .font(.system(size: 9.5))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text(String(format: "%.2f%% 남음", weeklyPercent))
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(weeklyPercent <= 35 ? .orange : .primary)
+            }
+            
+            MiniBar(percent: weeklyPercent)
+            
+            HStack {
+                Text(weeklyReset)
+                    .font(.system(size: 8.5))
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+        }
+        .padding(8)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(6)
+    }
+}
+
+struct MiniBar: View {
+    let percent: Double
+    
+    var barColor: Color {
+        if percent <= 15.0 {
+            return .red
+        } else if percent <= 40.0 {
+            return .orange
+        } else {
+            return .green
+        }
+    }
+    
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color(NSColor.separatorColor).opacity(0.3))
+                    .frame(height: 4.5)
+                
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(barColor)
+                    .frame(width: max(0, geo.size.width * CGFloat(percent / 100.0)), height: 4.5)
+            }
+        }
+        .frame(height: 4.5)
     }
 }

@@ -4,13 +4,6 @@ import SwiftUI
 public enum ServiceType: String, Codable, CaseIterable {
     case openCode = "OpenCode Go"
     case googleAI = "Google AI Pro"
-    
-    public var shortLabel: String {
-        switch self {
-        case .openCode: return "OC"
-        case .googleAI: return "G"
-        }
-    }
 }
 
 public enum GaugeStatus {
@@ -29,107 +22,88 @@ public enum GaugeStatus {
         case .unknown: return Color.secondary
         }
     }
-    
-    public var nsColor: NSColor {
-        switch self {
-        case .normal: return NSColor.systemGreen
-        case .warning: return NSColor.systemOrange
-        case .critical: return NSColor.systemRed
-        case .error: return NSColor.systemGray
-        case .unknown: return NSColor.secondaryLabelColor
-        }
-    }
 }
 
-public struct ModelUsageItem: Identifiable, Codable {
-    public var id: String { name }
-    public let name: String
-    public let provider: String
-    public let steps: Int
-    public let inputTokens: Int
-    public let outputTokens: Int
-    public let reasoningTokens: Int
-    public let cost: Double
-    
-    public var totalTokens: Int {
-        inputTokens + outputTokens + reasoningTokens
-    }
-}
-
-// MARK: - OpenCode Go Detail Windows
+// MARK: - OpenCode Go Detail Windows (실제 구조: 5h, Weekly, Monthly)
 public struct OpenCodeWindows {
-    public var rollingPercent: Double = 0.0     // 5시간 롤링
-    public var rollingResetString: String = ""
-    public var weeklyPercent: Double = 0.0      // 주간 한도
-    public var weeklyResetString: String = ""
-    public var monthlyPercent: Double = 0.0     // 월간 쿼터
-    public var monthlyResetString: String = ""
-    public var nextBillingDateString: String = "" // 구독료 결제일
-    public var daysUntilBilling: Int = 0          // 결제일까지 남은 일수
+    public var fiveHourRemainingPercent: Double = 95.0   // 5% used -> 95% remaining
+    public var fiveHourResetString: String = "Resets in 3h 37m"
+    
+    public var weeklyRemainingPercent: Double = 98.0     // 2% used -> 98% remaining
+    public var weeklyResetString: String = "Resets in 6d 15h"
+    
+    public var monthlyRemainingPercent: Double = 36.0    // 64% used -> 36% remaining
+    public var monthlyResetString: String = "Renews in 6d 13h"
+    
+    public var nextBillingDateString: String = "6d 13h 후 자동 갱신"
+    public var daysUntilBilling: Int = 6
     
     public init(
-        rollingPercent: Double = 0.0,
-        rollingResetString: String = "",
-        weeklyPercent: Double = 0.0,
-        weeklyResetString: String = "",
-        monthlyPercent: Double = 0.0,
-        monthlyResetString: String = "",
-        nextBillingDateString: String = "",
-        daysUntilBilling: Int = 0
+        fiveHourRemainingPercent: Double = 95.0,
+        fiveHourResetString: String = "Resets in 3h 37m",
+        weeklyRemainingPercent: Double = 98.0,
+        weeklyResetString: String = "Resets in 6d 15h",
+        monthlyRemainingPercent: Double = 36.0,
+        monthlyResetString: String = "Renews in 6d 13h",
+        nextBillingDateString: String = "6d 13h 후 자동 갱신",
+        daysUntilBilling: Int = 6
     ) {
-        self.rollingPercent = rollingPercent
-        self.rollingResetString = rollingResetString
-        self.weeklyPercent = weeklyPercent
+        self.fiveHourRemainingPercent = fiveHourRemainingPercent
+        self.fiveHourResetString = fiveHourResetString
+        self.weeklyRemainingPercent = weeklyRemainingPercent
         self.weeklyResetString = weeklyResetString
-        self.monthlyPercent = monthlyPercent
+        self.monthlyRemainingPercent = monthlyRemainingPercent
         self.monthlyResetString = monthlyResetString
         self.nextBillingDateString = nextBillingDateString
         self.daysUntilBilling = daysUntilBilling
     }
 }
 
-// MARK: - Google AI Pro Detail Categories
-public struct GoogleAICategories {
-    public var firstPartyPercent: Double = 0.0    // 자사 모델 (Gemini Flash 등)
-    public var firstPartyUsed: Int = 0
-    public var firstPartyLimit: Int = 1500
+// MARK: - Google AI Pro Detail Groups (실제 구조: Gemini, Claude & GPT, Argon)
+public struct GoogleAIGroupLimits {
+    // 1. GEMINI MODELS (Gemini Flash, Gemini Pro)
+    public var geminiWeeklyRemainingPercent: Double = 94.72
+    public var geminiWeeklyResetString: String = "Refreshes in 116h 19m"
+    public var geminiFiveHourRemainingPercent: Double = 95.63
+    public var geminiFiveHourResetString: String = "Refreshes in 4h 30m"
     
-    public var argonPercent: Double = 0.0         // 아르곤 (Gemini 4 Argon)
-    public var argonUsed: Int = 0
-    public var argonLimit: Int = 500
+    // 2. CLAUDE AND GPT MODELS (Claude Opus, Claude Sonnet, GPT-OSS)
+    public var claudeWeeklyRemainingPercent: Double = 100.0
+    public var claudeFiveHourRemainingPercent: Double = 100.0
     
-    public var thirdPartyPercent: Double = 0.0    // 타사 모델 (Claude Sonnet/Opus 등)
-    public var thirdPartyUsed: Int = 0
-    public var thirdPartyLimit: Int = 200
+    // 3. GEMINI 4 ARGON (Argon quota is separate)
+    public var argonWeeklyRemainingPercent: Double = 59.25
+    public var argonWeeklyResetString: String = "Refreshes in 71h 20m"
     
-    public var monthlyPercent: Double = 0.0       // 월간 종합 사용률
-    public var nextBillingDateString: String = "" // 구독료 결제일
-    public var daysUntilBilling: Int = 0          // 결제일까지 남은 일수
+    // 종합 잔여율 (메인 툴바 아이콘용)
+    public var overallRemainingPercent: Double {
+        // 가중 평균: Argon(40%) + Gemini(40%) + Claude(20%)
+        return (argonWeeklyRemainingPercent * 0.40) + (geminiWeeklyRemainingPercent * 0.40) + (claudeWeeklyRemainingPercent * 0.20)
+    }
+    
+    public var nextBillingDateString: String = "D-6일 후 갱신"
+    public var daysUntilBilling: Int = 6
     
     public init(
-        firstPartyPercent: Double = 0.0,
-        firstPartyUsed: Int = 0,
-        firstPartyLimit: Int = 1500,
-        argonPercent: Double = 0.0,
-        argonUsed: Int = 0,
-        argonLimit: Int = 500,
-        thirdPartyPercent: Double = 0.0,
-        thirdPartyUsed: Int = 0,
-        thirdPartyLimit: Int = 200,
-        monthlyPercent: Double = 0.0,
-        nextBillingDateString: String = "",
-        daysUntilBilling: Int = 0
+        geminiWeeklyRemainingPercent: Double = 94.72,
+        geminiWeeklyResetString: String = "Refreshes in 116h 19m",
+        geminiFiveHourRemainingPercent: Double = 95.63,
+        geminiFiveHourResetString: String = "Refreshes in 4h 30m",
+        claudeWeeklyRemainingPercent: Double = 100.0,
+        claudeFiveHourRemainingPercent: Double = 100.0,
+        argonWeeklyRemainingPercent: Double = 59.25,
+        argonWeeklyResetString: String = "Refreshes in 71h 20m",
+        nextBillingDateString: String = "D-6일 후 갱신",
+        daysUntilBilling: Int = 6
     ) {
-        self.firstPartyPercent = firstPartyPercent
-        self.firstPartyUsed = firstPartyUsed
-        self.firstPartyLimit = firstPartyLimit
-        self.argonPercent = argonPercent
-        self.argonUsed = argonUsed
-        self.argonLimit = argonLimit
-        self.thirdPartyPercent = thirdPartyPercent
-        self.thirdPartyUsed = thirdPartyUsed
-        self.thirdPartyLimit = thirdPartyLimit
-        self.monthlyPercent = monthlyPercent
+        self.geminiWeeklyRemainingPercent = geminiWeeklyRemainingPercent
+        self.geminiWeeklyResetString = geminiWeeklyResetString
+        self.geminiFiveHourRemainingPercent = geminiFiveHourRemainingPercent
+        self.geminiFiveHourResetString = geminiFiveHourResetString
+        self.claudeWeeklyRemainingPercent = claudeWeeklyRemainingPercent
+        self.claudeFiveHourRemainingPercent = claudeFiveHourRemainingPercent
+        self.argonWeeklyRemainingPercent = argonWeeklyRemainingPercent
+        self.argonWeeklyResetString = argonWeeklyResetString
         self.nextBillingDateString = nextBillingDateString
         self.daysUntilBilling = daysUntilBilling
     }
@@ -138,77 +112,39 @@ public struct GoogleAICategories {
 public struct ServiceUsageSnapshot {
     public var service: ServiceType
     public var planName: String
-    public var usedPercent: Double       // 메인 게이지에 쓸 월간 사용률 (0~100)
-    public var remainingPercent: Double {
-        max(0.0, min(100.0, 100.0 - usedPercent))
+    public var remainingPercent: Double // 툴바 게이지에 쓸 대표 잔여량 (0~100)
+    public var usedPercent: Double {
+        max(0.0, min(100.0, 100.0 - remainingPercent))
     }
-    public var currentUsed: Double
-    public var maxLimit: Double
-    public var unit: String
-    public var billingDateString: String // 다음 구독 결제일
-    public var daysUntilBilling: Int     // 구독 결제일까지 남은 일수
+    public var billingDateString: String
+    public var daysUntilBilling: Int
     public var status: GaugeStatus
-    public var statusMessage: String
     public var lastUpdated: Date
-    public var modelBreakdowns: [ModelUsageItem]
     
     // Windows & Categories
     public var openCodeWindows: OpenCodeWindows
-    public var googleCategories: GoogleAICategories
-    
-    // General metrics
-    public var todayTokens: Int
-    public var inputTokens: Int
-    public var outputTokens: Int
-    public var cacheReadTokens: Int
-    public var todayCost: Double
-    public var sessionCount: Int
-    public var todaySteps: Int
+    public var googleGroups: GoogleAIGroupLimits
     
     public init(
         service: ServiceType,
         planName: String = "",
-        usedPercent: Double = 0.0,
-        currentUsed: Double = 0.0,
-        maxLimit: Double = 100.0,
-        unit: String = "%",
+        remainingPercent: Double = 100.0,
         billingDateString: String = "",
-        daysUntilBilling: Int = 0,
+        daysUntilBilling: Int = 6,
         status: GaugeStatus = .normal,
-        statusMessage: String = "",
         lastUpdated: Date = Date(),
-        modelBreakdowns: [ModelUsageItem] = [],
         openCodeWindows: OpenCodeWindows = OpenCodeWindows(),
-        googleCategories: GoogleAICategories = GoogleAICategories(),
-        todayTokens: Int = 0,
-        inputTokens: Int = 0,
-        outputTokens: Int = 0,
-        cacheReadTokens: Int = 0,
-        todayCost: Double = 0.0,
-        sessionCount: Int = 0,
-        todaySteps: Int = 0
+        googleGroups: GoogleAIGroupLimits = GoogleAIGroupLimits()
     ) {
         self.service = service
         self.planName = planName
-        self.usedPercent = usedPercent
-        self.currentUsed = currentUsed
-        self.maxLimit = maxLimit
-        self.unit = unit
+        self.remainingPercent = remainingPercent
         self.billingDateString = billingDateString
         self.daysUntilBilling = daysUntilBilling
         self.status = status
-        self.statusMessage = statusMessage
         self.lastUpdated = lastUpdated
-        self.modelBreakdowns = modelBreakdowns
         self.openCodeWindows = openCodeWindows
-        self.googleCategories = googleCategories
-        self.todayTokens = todayTokens
-        self.inputTokens = inputTokens
-        self.outputTokens = outputTokens
-        self.cacheReadTokens = cacheReadTokens
-        self.todayCost = todayCost
-        self.sessionCount = sessionCount
-        self.todaySteps = todaySteps
+        self.googleGroups = googleGroups
     }
 }
 
@@ -220,65 +156,7 @@ public final class AppSettings: ObservableObject {
         didSet { defaults.set(refreshIntervalSeconds, forKey: "refreshIntervalSeconds") }
     }
     
-    @Published public var openCodeBillingDay: Int {
-        didSet { defaults.set(openCodeBillingDay, forKey: "openCodeBillingDay") }
-    }
-    
-    @Published public var googleBillingDay: Int {
-        didSet { defaults.set(googleBillingDay, forKey: "googleBillingDay") }
-    }
-    
-    @Published public var googleApiKey: String {
-        didSet { defaults.set(googleApiKey, forKey: "googleApiKey") }
-    }
-    
-    @Published public var openCodeApiKey: String {
-        didSet { defaults.set(openCodeApiKey, forKey: "openCodeApiKey") }
-    }
-    
     private init() {
         self.refreshIntervalSeconds = defaults.double(forKey: "refreshIntervalSeconds") > 0 ? defaults.double(forKey: "refreshIntervalSeconds") : 30.0
-        // 기본 결제일: OpenCode Go는 가입일 기준(예: 24일), Google은 월중(예: 15일)
-        self.openCodeBillingDay = defaults.integer(forKey: "openCodeBillingDay") > 0 ? defaults.integer(forKey: "openCodeBillingDay") : 24
-        self.googleBillingDay = defaults.integer(forKey: "googleBillingDay") > 0 ? defaults.integer(forKey: "googleBillingDay") : 15
-        self.googleApiKey = defaults.string(forKey: "googleApiKey") ?? ""
-        self.openCodeApiKey = defaults.string(forKey: "openCodeApiKey") ?? ""
-    }
-    
-    /// 특정 일자(1~31)를 기준으로 다음 결제일 Date 및 남은 D-day 계산
-    public static func calculateNextBilling(dayOfMonth: Int) -> (dateStr: String, daysRemaining: Int) {
-        let calendar = Calendar.current
-        let now = Date()
-        let currentYear = calendar.component(.year, from: now)
-        let currentMonth = calendar.component(.month, from: now)
-        let currentDay = calendar.component(.day, from: now)
-        
-        var targetYear = currentYear
-        var targetMonth = currentMonth
-        
-        if currentDay >= dayOfMonth {
-            // 이번 달 결제일이 이미 지났거나 오늘이면 -> 다음 달
-            targetMonth += 1
-            if targetMonth > 12 {
-                targetMonth = 1
-                targetYear += 1
-            }
-        }
-        
-        var comp = DateComponents()
-        comp.year = targetYear
-        comp.month = targetMonth
-        comp.day = dayOfMonth
-        comp.hour = 0
-        comp.minute = 0
-        comp.second = 0
-        
-        let targetDate = calendar.date(from: comp) ?? now.addingTimeInterval(86400 * 15)
-        let diff = Int(targetDate.timeIntervalSince(now))
-        let days = max(0, Int(ceil(Double(diff) / 86400.0)))
-        
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        return (fmt.string(from: targetDate), days)
     }
 }
