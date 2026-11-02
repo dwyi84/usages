@@ -2,25 +2,25 @@
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$DIR"
 
-if [ ! -d "$DIR/build/AI Usages.app" ]; then
-    echo "==> Building app first..."
-    "$DIR/Scripts/build_app.sh"
-fi
+echo "==> Building fresh AI Usages.app..."
+"$DIR/Scripts/build_app.sh"
 
-TARGET_DIR="/Applications"
-if [ ! -w "$TARGET_DIR" ]; then
-    TARGET_DIR="$HOME/Applications"
-    mkdir -p "$TARGET_DIR"
-fi
+TARGET_APP="/Applications/AI Usages.app"
 
-echo "==> Installing AI Usages to $TARGET_DIR/AI Usages.app..."
-pkill -f "AI Usages.app/Contents/MacOS/AIUsages" || true
+echo "==> Terminating running instances..."
+pkill -f "AIUsages" || true
+sleep 1
 
-rm -rf "$TARGET_DIR/AI Usages.app"
-cp -R "$DIR/build/AI Usages.app" "$TARGET_DIR/AI Usages.app"
+echo "==> Installing AI Usages to /Applications/AI Usages.app..."
+rm -rf "$TARGET_APP"
+cp -R "$DIR/build/AI Usages.app" "$TARGET_APP"
 
-echo "==> Launching installed AI Usages..."
-open "$TARGET_DIR/AI Usages.app"
+# Quarantine 속성 제거
+xattr -dr com.apple.quarantine "$TARGET_APP" 2>/dev/null || true
 
-echo "==> Installation complete! AI Usages is now running in your menu bar."
+echo "==> Launching installed app from /Applications..."
+open "$TARGET_APP"
+
+echo "==> Installation complete! AI Usages is now installed in /Applications and active in your menu bar."

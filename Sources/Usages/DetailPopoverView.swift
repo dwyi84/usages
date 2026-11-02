@@ -3,6 +3,7 @@ import SwiftUI
 public struct DetailPopoverView: View {
     @ObservedObject var usageManager = UsageManager.shared
     @ObservedObject var settings = AppSettings.shared
+    @ObservedObject var launchAtLogin = LaunchAtLoginManager.shared
     
     public init() {}
     
@@ -54,32 +55,47 @@ public struct DetailPopoverView: View {
             Divider()
             
             // MARK: - Footer (설정 메뉴를 별도 창/화면 없이 하단에 간결하게 통합)
-            HStack(spacing: 8) {
-                Text("자동 갱신:")
-                    .font(.system(size: 10, weight: .medium))
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    Text("자동 갱신:")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    Picker("", selection: $settings.refreshIntervalSeconds) {
+                        Text("15초").tag(15.0)
+                        Text("30초").tag(30.0)
+                        Text("1분").tag(60.0)
+                        Text("5분").tag(300.0)
+                    }
+                    .pickerStyle(.segmented)
+                    .controlSize(.mini)
+                    .frame(width: 170)
+                    .onChange(of: settings.refreshIntervalSeconds) { _ in
+                        usageManager.startTimer()
+                    }
+                    
+                    Spacer()
+                    
+                    Button("종료") {
+                        NSApplication.shared.terminate(nil)
+                    }
+                    .font(.system(size: 10))
+                    .buttonStyle(.borderless)
                     .foregroundColor(.secondary)
-                
-                Picker("", selection: $settings.refreshIntervalSeconds) {
-                    Text("15초").tag(15.0)
-                    Text("30초").tag(30.0)
-                    Text("1분").tag(60.0)
-                    Text("5분").tag(300.0)
-                }
-                .pickerStyle(.segmented)
-                .controlSize(.mini)
-                .frame(width: 170)
-                .onChange(of: settings.refreshIntervalSeconds) { _ in
-                    usageManager.startTimer()
                 }
                 
-                Spacer()
-                
-                Button("종료") {
-                    NSApplication.shared.terminate(nil)
+                HStack {
+                    Toggle("로그인 시 자동 시작", isOn: $launchAtLogin.isEnabled)
+                        .toggleStyle(.checkbox)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Text("설치 위치: /Applications")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary.opacity(0.6))
                 }
-                .font(.system(size: 10))
-                .buttonStyle(.borderless)
-                .foregroundColor(.secondary)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
