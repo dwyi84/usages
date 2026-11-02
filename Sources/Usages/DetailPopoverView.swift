@@ -109,7 +109,7 @@ struct OpenCodeSectionView: View {
                 
                 Spacer()
                 
-                Text("• Renews in 6d 13h")
+                Text("• \(windows.monthlyResetString)")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.blue)
             }
@@ -153,7 +153,7 @@ struct GoogleAISectionView: View {
                 
                 Spacer()
                 
-                Text("• Renews in 6d 13h")
+                Text("• \(groups.nextBillingDateString)")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.purple)
             }
@@ -170,9 +170,9 @@ struct GoogleAISectionView: View {
                 GroupSplitRow(
                     title: "Claude & GPT",
                     weekly: groups.claudeWeeklyRemainingPercent,
-                    weeklyInfo: "Quota available",
+                    weeklyInfo: groups.claudeWeeklyResetString,
                     fiveHour: groups.claudeFiveHourRemainingPercent,
-                    fiveHourInfo: "Quota available"
+                    fiveHourInfo: groups.claudeFiveHourResetString
                 )
                 
                 CleanProgressBar(
@@ -200,13 +200,20 @@ struct CleanProgressBar: View {
         return .green
     }
     
+    var formattedPercent: String {
+        if percent.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(format: "%.0f%% 남음", percent)
+        }
+        return String(format: "%.2f%% 남음", percent)
+    }
+    
     var body: some View {
         VStack(spacing: 2) {
             HStack {
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
                 Spacer()
-                Text(String(format: "%.1f%% 남음", percent))
+                Text(formattedPercent)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(color)
             }
@@ -241,6 +248,13 @@ struct GroupSplitRow: View {
     let fiveHour: Double
     let fiveHourInfo: String
     
+    private func fmt(_ val: Double) -> String {
+        if val.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(format: "%.0f%%", val)
+        }
+        return String(format: "%.2f%%", val)
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
@@ -254,7 +268,7 @@ struct GroupSplitRow: View {
                             .font(.system(size: 9))
                             .foregroundColor(.secondary)
                         Spacer()
-                        Text(String(format: "%.1f%%", weekly))
+                        Text(fmt(weekly))
                             .font(.system(size: 9.5, weight: .bold))
                     }
                     MiniSegmentLine(percent: weekly)
@@ -270,7 +284,7 @@ struct GroupSplitRow: View {
                             .font(.system(size: 9))
                             .foregroundColor(.secondary)
                         Spacer()
-                        Text(String(format: "%.1f%%", fiveHour))
+                        Text(fmt(fiveHour))
                             .font(.system(size: 9.5, weight: .bold))
                     }
                     MiniSegmentLine(percent: fiveHour)

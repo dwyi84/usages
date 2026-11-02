@@ -62,37 +62,40 @@ public struct OpenCodeWindows {
 // MARK: - Google AI Pro Detail Groups (실제 구조: Gemini, Claude & GPT, Argon)
 public struct GoogleAIGroupLimits {
     // 1. GEMINI MODELS (Gemini Flash, Gemini Pro)
-    public var geminiWeeklyRemainingPercent: Double = 94.72
-    public var geminiWeeklyResetString: String = "Refreshes in 116h 19m"
-    public var geminiFiveHourRemainingPercent: Double = 95.63
-    public var geminiFiveHourResetString: String = "Refreshes in 4h 30m"
+    public var geminiWeeklyRemainingPercent: Double = 93.52
+    public var geminiWeeklyResetString: String = "Refreshes in 115h 45m"
+    public var geminiFiveHourRemainingPercent: Double = 90.73
+    public var geminiFiveHourResetString: String = "Refreshes in 3h 56m"
     
     // 2. CLAUDE AND GPT MODELS (Claude Opus, Claude Sonnet, GPT-OSS)
     public var claudeWeeklyRemainingPercent: Double = 100.0
+    public var claudeWeeklyResetString: String = "Quota available"
     public var claudeFiveHourRemainingPercent: Double = 100.0
+    public var claudeFiveHourResetString: String = "Quota available"
     
     // 3. GEMINI 4 ARGON (Argon quota is separate)
     public var argonWeeklyRemainingPercent: Double = 59.25
-    public var argonWeeklyResetString: String = "Refreshes in 71h 20m"
+    public var argonWeeklyResetString: String = "Refreshes in 70h 46m"
     
-    // 종합 잔여율 (메인 툴바 아이콘용)
+    // 종합 잔여율 (메인 툴바 아이콘용: 가장 타이트한 쿼터 반영)
     public var overallRemainingPercent: Double {
-        // 가중 평균: Argon(40%) + Gemini(40%) + Claude(20%)
-        return (argonWeeklyRemainingPercent * 0.40) + (geminiWeeklyRemainingPercent * 0.40) + (claudeWeeklyRemainingPercent * 0.20)
+        return min(argonWeeklyRemainingPercent, geminiWeeklyRemainingPercent)
     }
     
     public var nextBillingDateString: String = "D-6일 후 갱신"
     public var daysUntilBilling: Int = 6
     
     public init(
-        geminiWeeklyRemainingPercent: Double = 94.72,
-        geminiWeeklyResetString: String = "Refreshes in 116h 19m",
-        geminiFiveHourRemainingPercent: Double = 95.63,
-        geminiFiveHourResetString: String = "Refreshes in 4h 30m",
+        geminiWeeklyRemainingPercent: Double = 93.52,
+        geminiWeeklyResetString: String = "Refreshes in 115h 45m",
+        geminiFiveHourRemainingPercent: Double = 90.73,
+        geminiFiveHourResetString: String = "Refreshes in 3h 56m",
         claudeWeeklyRemainingPercent: Double = 100.0,
+        claudeWeeklyResetString: String = "Quota available",
         claudeFiveHourRemainingPercent: Double = 100.0,
+        claudeFiveHourResetString: String = "Quota available",
         argonWeeklyRemainingPercent: Double = 59.25,
-        argonWeeklyResetString: String = "Refreshes in 71h 20m",
+        argonWeeklyResetString: String = "Refreshes in 70h 46m",
         nextBillingDateString: String = "D-6일 후 갱신",
         daysUntilBilling: Int = 6
     ) {
@@ -101,7 +104,9 @@ public struct GoogleAIGroupLimits {
         self.geminiFiveHourRemainingPercent = geminiFiveHourRemainingPercent
         self.geminiFiveHourResetString = geminiFiveHourResetString
         self.claudeWeeklyRemainingPercent = claudeWeeklyRemainingPercent
+        self.claudeWeeklyResetString = claudeWeeklyResetString
         self.claudeFiveHourRemainingPercent = claudeFiveHourRemainingPercent
+        self.claudeFiveHourResetString = claudeFiveHourResetString
         self.argonWeeklyRemainingPercent = argonWeeklyRemainingPercent
         self.argonWeeklyResetString = argonWeeklyResetString
         self.nextBillingDateString = nextBillingDateString
