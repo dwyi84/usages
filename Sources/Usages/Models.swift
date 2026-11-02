@@ -11,19 +11,12 @@ public enum ServiceType: String, Codable, CaseIterable {
         case .googleAI: return "G"
         }
     }
-    
-    public var defaultIconName: String {
-        switch self {
-        case .openCode: return "cpu"
-        case .googleAI: return "sparkles"
-        }
-    }
 }
 
 public enum GaugeStatus {
-    case normal      // 0 ~ 70% used (or > 30% remaining)
-    case warning     // 70 ~ 90% used
-    case critical    // > 90% used
+    case normal
+    case warning
+    case critical
     case error
     case unknown
     
@@ -34,6 +27,16 @@ public enum GaugeStatus {
         case .critical: return Color.red
         case .error: return Color.gray
         case .unknown: return Color.secondary
+        }
+    }
+    
+    public var nsColor: NSColor {
+        switch self {
+        case .normal: return NSColor.systemGreen
+        case .warning: return NSColor.systemOrange
+        case .critical: return NSColor.systemRed
+        case .error: return NSColor.systemGray
+        case .unknown: return NSColor.secondaryLabelColor
         }
     }
 }
@@ -53,10 +56,86 @@ public struct ModelUsageItem: Identifiable, Codable {
     }
 }
 
+// MARK: - OpenCode Go Detail Windows
+public struct OpenCodeWindows {
+    public var rollingPercent: Double = 0.0     // 5시간 롤링
+    public var rollingResetString: String = ""
+    public var weeklyPercent: Double = 0.0      // 주간 한도
+    public var weeklyResetString: String = ""
+    public var monthlyPercent: Double = 0.0     // 월간 쿼터
+    public var monthlyResetString: String = ""
+    public var daysUntilReset: Int = 0          // 갱신일까지 남은 일수
+    
+    public init(
+        rollingPercent: Double = 0.0,
+        rollingResetString: String = "",
+        weeklyPercent: Double = 0.0,
+        weeklyResetString: String = "",
+        monthlyPercent: Double = 0.0,
+        monthlyResetString: String = "",
+        daysUntilReset: Int = 0
+    ) {
+        self.rollingPercent = rollingPercent
+        self.rollingResetString = rollingResetString
+        self.weeklyPercent = weeklyPercent
+        self.weeklyResetString = weeklyResetString
+        self.monthlyPercent = monthlyPercent
+        self.monthlyResetString = monthlyResetString
+        self.daysUntilReset = daysUntilReset
+    }
+}
+
+// MARK: - Google AI Pro Detail Categories
+public struct GoogleAICategories {
+    public var firstPartyPercent: Double = 0.0    // 자사 모델 (Gemini Flash 등)
+    public var firstPartyUsed: Int = 0
+    public var firstPartyLimit: Int = 1500
+    
+    public var argonPercent: Double = 0.0         // 아르곤 (Gemini 4 Argon)
+    public var argonUsed: Int = 0
+    public var argonLimit: Int = 500
+    
+    public var thirdPartyPercent: Double = 0.0    // 타사 모델 (Claude Sonnet/Opus 등)
+    public var thirdPartyUsed: Int = 0
+    public var thirdPartyLimit: Int = 200
+    
+    public var monthlyPercent: Double = 0.0       // 월간 종합 사용률
+    public var daysUntilReset: Int = 0            // 갱신일까지 남은 일수
+    public var resetTimeString: String = ""
+    
+    public init(
+        firstPartyPercent: Double = 0.0,
+        firstPartyUsed: Int = 0,
+        firstPartyLimit: Int = 1500,
+        argonPercent: Double = 0.0,
+        argonUsed: Int = 0,
+        argonLimit: Int = 500,
+        thirdPartyPercent: Double = 0.0,
+        thirdPartyUsed: Int = 0,
+        thirdPartyLimit: Int = 200,
+        monthlyPercent: Double = 0.0,
+        daysUntilReset: Int = 0,
+        resetTimeString: String = ""
+    ) {
+        self.firstPartyPercent = firstPartyPercent
+        self.firstPartyUsed = firstPartyUsed
+        self.firstPartyLimit = firstPartyLimit
+        self.argonPercent = argonPercent
+        self.argonUsed = argonUsed
+        self.argonLimit = argonLimit
+        self.thirdPartyPercent = thirdPartyPercent
+        self.thirdPartyUsed = thirdPartyUsed
+        self.thirdPartyLimit = thirdPartyLimit
+        self.monthlyPercent = monthlyPercent
+        self.daysUntilReset = daysUntilReset
+        self.resetTimeString = resetTimeString
+    }
+}
+
 public struct ServiceUsageSnapshot {
     public var service: ServiceType
     public var planName: String
-    public var usedPercent: Double       // 0.0 ~ 100.0 (예: 25.0 = 25% 사용됨)
+    public var usedPercent: Double       // 메인 게이지에 쓸 월간 사용률 (0~100)
     public var remainingPercent: Double {
         max(0.0, min(100.0, 100.0 - usedPercent))
     }
@@ -64,12 +143,17 @@ public struct ServiceUsageSnapshot {
     public var maxLimit: Double
     public var unit: String
     public var resetTimeString: String
+    public var daysUntilReset: Int       // 갱신일까지 남은 일수
     public var status: GaugeStatus
     public var statusMessage: String
     public var lastUpdated: Date
     public var modelBreakdowns: [ModelUsageItem]
     
-    // Additional metrics
+    // Windows & Categories
+    public var openCodeWindows: OpenCodeWindows
+    public var googleCategories: GoogleAICategories
+    
+    // General metrics
     public var todayTokens: Int
     public var inputTokens: Int
     public var outputTokens: Int
@@ -85,11 +169,14 @@ public struct ServiceUsageSnapshot {
         currentUsed: Double = 0.0,
         maxLimit: Double = 100.0,
         unit: String = "%",
-        resetTimeString: String = "일일 자동 리셋",
+        resetTimeString: String = "",
+        daysUntilReset: Int = 0,
         status: GaugeStatus = .normal,
-        statusMessage: String = "정상",
+        statusMessage: String = "",
         lastUpdated: Date = Date(),
         modelBreakdowns: [ModelUsageItem] = [],
+        openCodeWindows: OpenCodeWindows = OpenCodeWindows(),
+        googleCategories: GoogleAICategories = GoogleAICategories(),
         todayTokens: Int = 0,
         inputTokens: Int = 0,
         outputTokens: Int = 0,
@@ -105,10 +192,13 @@ public struct ServiceUsageSnapshot {
         self.maxLimit = maxLimit
         self.unit = unit
         self.resetTimeString = resetTimeString
+        self.daysUntilReset = daysUntilReset
         self.status = status
         self.statusMessage = statusMessage
         self.lastUpdated = lastUpdated
         self.modelBreakdowns = modelBreakdowns
+        self.openCodeWindows = openCodeWindows
+        self.googleCategories = googleCategories
         self.todayTokens = todayTokens
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
@@ -119,27 +209,9 @@ public struct ServiceUsageSnapshot {
     }
 }
 
-public enum MenuBarDisplayMode: String, Codable, CaseIterable {
-    case separateItems = "개별 배터리 아이콘 (OC / Google 각각)"
-    case combinedItem = "통합 단일 아이콘 ([OC] [G])"
-}
-
 public final class AppSettings: ObservableObject {
     public static let shared = AppSettings()
-    
     private let defaults = UserDefaults.standard
-    
-    @Published public var displayMode: MenuBarDisplayMode {
-        didSet { defaults.set(displayMode.rawValue, forKey: "displayMode") }
-    }
-    
-    @Published public var showPercentText: Bool {
-        didSet { defaults.set(showPercentText, forKey: "showPercentText") }
-    }
-    
-    @Published public var showShortLabel: Bool {
-        didSet { defaults.set(showShortLabel, forKey: "showShortLabel") }
-    }
     
     @Published public var refreshIntervalSeconds: Double {
         didSet { defaults.set(refreshIntervalSeconds, forKey: "refreshIntervalSeconds") }
@@ -153,23 +225,9 @@ public final class AppSettings: ObservableObject {
         didSet { defaults.set(openCodeApiKey, forKey: "openCodeApiKey") }
     }
     
-    @Published public var launchAtLogin: Bool {
-        didSet { defaults.set(launchAtLogin, forKey: "launchAtLogin") }
-    }
-    
     private init() {
-        if let modeRaw = defaults.string(forKey: "displayMode"),
-           let mode = MenuBarDisplayMode(rawValue: modeRaw) {
-            self.displayMode = mode
-        } else {
-            self.displayMode = .separateItems
-        }
-        
-        self.showPercentText = defaults.object(forKey: "showPercentText") != nil ? defaults.bool(forKey: "showPercentText") : true
-        self.showShortLabel = defaults.object(forKey: "showShortLabel") != nil ? defaults.bool(forKey: "showShortLabel") : true
         self.refreshIntervalSeconds = defaults.double(forKey: "refreshIntervalSeconds") > 0 ? defaults.double(forKey: "refreshIntervalSeconds") : 30.0
         self.googleApiKey = defaults.string(forKey: "googleApiKey") ?? ""
         self.openCodeApiKey = defaults.string(forKey: "openCodeApiKey") ?? ""
-        self.launchAtLogin = defaults.bool(forKey: "launchAtLogin")
     }
 }

@@ -1,66 +1,53 @@
 # 🔋 Usages - AI Usage Menu Bar App for macOS
 
-macOS 메뉴바(툴바)에서 **OpenCode Go** 및 **Google AI Pro** 플랜의 사용량을 배터리 바(Battery Bar Gauge) 형태로 실시간 모니터링하고, 클릭 시 상세 통계를 한눈에 확인할 수 있는 네이티브 macOS 애플리케이션입니다.
+macOS 메뉴바(툴바)에서 **OpenCode Go** 및 **Google AI Pro**의 월간 사용량을 컴팩트한 **트윈 세로 바(Twin Vertical Bars)** 게이지 형태로 실시간 모니터링하고, 클릭 시 세부 윈도우(5시간/주간/월간) 및 카테고리(자사/아르곤/타사)를 한눈에 볼 수 있는 네이티브 macOS 애플리케이션입니다.
 
 ---
 
-## ✨ 주요 기능
+## ✨ 핵심 개편 및 주요 기능
 
-### 1. 툴바 상단 배터리 게이지 디스플레이
-- **배터리 바 디자인**: 배터리 외곽선 캡슐 + 잔여량/소모량 채움 레벨 + 상태별 컬러(초록/주황/빨강)
-- **개별 배터리 아이콘 모드**: 메뉴바에 `[OC ▰▰▰▱ 75%]` 와 `[G ▰▰▰▰ 90%]`가 각각 독립된 아이콘으로 깔끔하게 배치
-- **통합 단일 아이콘 모드**: 두 서비스의 배터리를 하나의 컴팩트한 메뉴바 아이콘으로 표시
-- **수치 커스텀**: 퍼센트 수치 On/Off, 서비스 약어 라벨 On/Off 지원
+### 1. 초슬림 통합 툴바 아이콘 (Twin Vertical Bar Gauge)
+- **단일 통합 아이콘**: 텍스트(OC, G)와 +전극 돌출부를 제거하고, **너비 약 18pt의 초컴팩트 직사각형 캡슐** 안에 두 개의 세로 바를 배치했습니다.
+  - **[왼쪽 세로 바]**: OpenCode Go **월간(Monthly)** 잔여 게이지 (아래에서 위로 차오름)
+  - **[오른쪽 세로 바]**: Google AI Pro **월간(Monthly)** 잔여 게이지 (아래에서 위로 차오름)
+  - **색상**: 잔여량에 따라 **초록색(정상) → 주황색(35% 이하) → 빨간색(15% 이하)** 전환
+- **갱신일(Reset D-day) 직관 표시**:
+  - 캡슐 상단 중앙 인디케이터로 갱신일 근접 여부를 직관적으로 전달:
+    - 갱신일 임박 (3일 이내): 눈에 띄는 **옐로우/오렌지 펄스 도트**
+    - 갱신일 보통 (7일 이내): **시안/하늘색 도트**
+    - 갱신일 여유 (> 7일): 차분한 반투명 도트
 
-### 2. 클릭 시 펼쳐지는 상세 팝오버 (Popover)
-- **OpenCode Go**:
-  - 실시간 잔여 게이지 & 롤링/일일 리셋 시각
-  - 오늘 작업량 (Steps), 총 토큰 수 (Input / Output / Cache Read)
-  - 오늘 소모 비용 ($) 및 세션 통계
-  - 모델별 세부 점유율 및 호출 통계 (DeepSeek, GLM 등)
-  - 로컬 `opencode` CLI 및 SQLite DB (`~/.local/share/opencode/opencode.db`) 자동 연동
-- **Google AI Pro**:
-  - 일일 요청 한도 (RPD) 대비 오늘 사용량 게이지
-  - 리셋까지 남은 시간 카운트다운
-  - 모델별 통계 (Gemini 3.8 Flash, Gemini 4 Argon 등)
-  - Antigravity / Gemini CLI Keyring 토큰 자동 연동 및 API Key 직접 입력 지원
+### 2. 깔끔한 2개 탭 상세 팝오버 (Popover View)
+클릭 시 혼란스러운 다중 버튼을 제거하고, 직관적인 **단 2개의 상단 탭**으로 개편되었습니다:
 
-### 3. 환경설정 (Preferences)
-- 메뉴바 표시 모드 변경 (개별 아이콘 vs 통합 아이콘)
-- 자동 새로고침 주기 (15초 / 30초 / 1분 / 5분)
-- 서비스별 커스텀 API Key 설정 (미입력 시 로컬 자동 감지)
-- 로그인 시 자동 실행 (Launch at Login)
+#### 💻 [OpenCode Go] 탭
+1. **5시간 롤링 한도 (5-Hour Rolling Window)**: 게이지 바 & 리셋 타이머
+2. **주간 한도 (Weekly Cap)**: 게이지 바 & 주간 리셋 주기
+3. **월간 쿼터 (Monthly Quota)**: 게이지 바 & **D-day 갱신 카운트다운** (툴바 아이콘과 연동)
+4. 오늘 작업량(스텝), 총 토큰(입력, 출력, 캐시 읽기), 모델별 사용 통계
+
+#### ✦ [Google AI Pro] 탭
+1. **자사 모델 (Gemini 3.8 Flash 등)**: 1,500 요청 일일 한도 대비 사용 게이지
+2. **아르곤 (Gemini 4 Argon 심층 추론)**: 500 요청 플래그십 한도 대비 사용 게이지
+3. **타사 모델 (Claude Sonnet/Opus, GPT-OSS 등)**: 200 요청 타사 쿼터 대비 사용 게이지
+4. **월간 종합 사용률 & D-day 갱신 주기** (툴바 아이콘과 연동)
+5. 인증 계정 식별 및 활성 모델별 토큰 분포
 
 ---
 
-## 🚀 빠른 시작
+## 🚀 실행 및 설치
 
-### 1. 빌드 및 바로 실행
 ```bash
-# 릴리즈 빌드 및 앱 번들 패키징
-./Scripts/build_app.sh
+cd /Users/melissa/ws/usages
 
-# 바로 실행
+# 실행
 ./Scripts/run.sh
-```
 
-### 2. Applications 폴더에 영구 설치
-```bash
+# /Applications 폴더에 설치
 ./Scripts/install.sh
 ```
-설치 후 `/Applications/Usages.app` 또는 Spotlight / Launchpad에서 언제든 실행할 수 있습니다.
 
 ---
 
-## 🛠️ 기술 스택
-- **Language**: Swift 6 (SwiftUI & AppKit)
-- **Architecture**: Native macOS StatusItem (`NSStatusItem`, `NSPopover`)
-- **Rendering**: CoreGraphics 기반 배터리 캡슐 벡터 렌더링 (`BatteryGaugeRenderer`)
-- **Data Integration**:
-  - OpenCode: Local SQLite3 DB & CLI JSON IPC
-  - Google AI Pro: macOS Keyring OAuth2 Token & CloudCode PA API
-
----
-
-## 🔒 라이선스
-Private Project. All rights reserved.
+## 🔒 GitHub 저장소
+- GitHub Private Repository: [https://github.com/dwyi84/usages](https://github.com/dwyi84/usages)

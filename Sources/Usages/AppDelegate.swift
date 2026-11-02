@@ -4,29 +4,26 @@ import SwiftUI
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
     
-    // Status Items
-    private var openCodeStatusItem: NSStatusItem?
-    private var googleStatusItem: NSStatusItem?
-    private var combinedStatusItem: NSStatusItem?
+    // 단일 통합 Status Item
+    private var statusItem: NSStatusItem?
     
-    // Popover
+    // Popover & Settings Window
     private var popover = NSPopover()
     private var settingsWindow: NSWindow?
     
     private let usageManager = UsageManager.shared
-    private let settings = AppSettings.shared
     
     public func applicationDidFinishLaunching(_ notification: Notification) {
         // Dock에 앱 아이콘을 띄우지 않고 툴바 전용 메뉴바 앱으로 동작
         NSApp.setActivationPolicy(.accessory)
         
         setupPopover()
-        setupStatusItems()
+        setupStatusItem()
         
         // 데이터 갱신 시 메뉴바 아이콘 업데이트 콜백 등록
         usageManager.onSnapshotUpdated = { [weak self] in
             Task { @MainActor in
-                self?.updateStatusItemIcons()
+                self?.updateStatusIcon()
             }
         }
         
@@ -42,105 +39,46 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController = NSHostingController(rootView: DetailPopoverView())
     }
     
-    public func setupStatusItems() {
-        // 기존 아이콘 제거
-        if let oc = openCodeStatusItem {
-            NSStatusBar.system.removeStatusItem(oc)
-            openCodeStatusItem = nil
+    private func setupStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = item.button {
+            button.target = self
+            button.action = #selector(statusItemClicked(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
-        if let g = googleStatusItem {
-            NSStatusBar.system.removeStatusItem(g)
-            googleStatusItem = nil
-        }
-        if let comb = combinedStatusItem {
-            NSStatusBar.system.removeStatusItem(comb)
-            combinedStatusItem = nil
-        }
-        
-        if settings.displayMode == .separateItems {
-            // 2개 개별 아이콘 모드
-            let ocItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            if let button = ocItem.button {
-                button.target = self
-                button.action = #selector(statusItemClicked(_:))
-                button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            }
-            openCodeStatusItem = ocItem
-            
-            let gItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            if let button = gItem.button {
-                button.target = self
-                button.action = #selector(statusItemClicked(_:))
-                button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            }
-            googleStatusItem = gItem
-        } else {
-            // 통합 단일 아이콘 모드
-            let combItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            if let button = combItem.button {
-                button.target = self
-                button.action = #selector(statusItemClicked(_:))
-                button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            }
-            combinedStatusItem = combItem
-        }
-        
-        updateStatusItemIcons()
+        self.statusItem = item
+        updateStatusIcon()
     }
     
-    public func updateStatusItemIcons() {
+    public func updateStatusIcon() {
+        guard let button = statusItem?.button else { return }
+        
         let oc = usageManager.openCodeSnapshot
         let g = usageManager.googleAISnapshot
         
-        if settings.displayMode == .separateItems {
-            // OpenCode Item
-            if let ocBtn = openCodeStatusItem?.button {
-                let img = BatteryGaugeRenderer.renderBatteryItem(
-                    label: settings.showShortLabel ? "OC" : nil,
-                    percent: oc.usedPercent,
-                    showPercent: settings.showPercentText,
-                    status: oc.status
-                )
-                ocBtn.image = img
-                ocBtn.toolTip = "OpenCode Go: \(Int(oc.usedPercent))% 소모 (\(oc.resetTimeString))\n클릭하여 상세 보기"
-            }
-            
-            // Google AI Item
-            if let gBtn = googleStatusItem?.button {
-                let img = BatteryGaugeRenderer.renderBatteryItem(
-                    label: settings.showShortLabel ? "G" : nil,
-                    percent: g.usedPercent,
-                    showPercent: settings.showPercentText,
-                    status: g.status
-                )
-                gBtn.image = img
-                gBtn.toolTip = "Google AI Pro: \(Int(g.usedPercent))% 소모 (\(g.resetTimeString))\n클릭하여 상세 보기"
-            }
-        } else {
-            // Combined Item
-            if let combBtn = combinedStatusItem?.button {
-                let img = BatteryGaugeRenderer.renderCombinedItem(
-                    openCodePercent: oc.usedPercent,
-                    openCodeStatus: oc.status,
-                    googlePercent: g.usedPercent,
-                    googleStatus: g.status,
-                    showPercent: settings.showPercentText
-                )
-                combBtn.image = img
-                combBtn.toolTip = "AI Usages (OpenCode & Google AI Pro)\n클릭하여 상세 보기"
-            }
-        }
+        // 월간 사용률 및 가장 가까운 갱신일(D-day)
+        let ocMonthly = oc.openCodeWindows.monthlyPercent > 0 ? oc.openCodeWindows.monthlyPercent : oc.usedPercent
+        let gMonthly = g.googleCategories.monthlyPercent > 0 ? g.googleCategories.monthlyPercent : g.usedPercent
+        let nearestDays = min(oc.daysUntilReset, g.daysUntilReset)
+        
+        let img = BatteryGaugeRenderer.renderUnifiedVerticalBars(
+            openCodeMonthlyPercent: ocMonthly,
+            openCodeStatus: oc.status,
+            googleMonthlyPercent: gMonthly,
+            googleStatus: g.status,
+            daysUntilReset: nearestDays
+        )
+        
+        button.image = img
+        button.toolTip = "AI Usages\n· OpenCode Go 월간: \(Int(ocMonthly))% 소모 (D-\(oc.daysUntilReset))\n· Google AI Pro 월간: \(Int(gMonthly))% 소모 (D-\(g.daysUntilReset))\n클릭하여 상세 보기"
     }
     
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
         let event = NSApp.currentEvent
         if event?.type == .rightMouseUp {
-            // 우클릭 시 컨텍스트 메뉴 표시
             showContextMenu(sender)
             return
         }
-        
-        // 좌클릭 시 팝오버 토글
         togglePopover(sender)
     }
     
@@ -180,7 +118,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 490),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 380),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false

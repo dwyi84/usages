@@ -21,42 +21,21 @@ public struct SettingsView: View {
     }
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             // Title
             HStack {
                 Image(systemName: "slider.horizontal.3")
                     .foregroundColor(.accentColor)
-                    .font(.system(size: 16))
-                Text("Usages 환경설정")
                     .font(.system(size: 15, weight: .bold))
+                Text("Usages 환경설정")
+                    .font(.system(size: 14, weight: .bold))
                 Spacer()
             }
             
             Divider()
             
-            // Section 1: 메뉴바 표시 모드
-            VStack(alignment: .leading, spacing: 8) {
-                Text("메뉴바(툴바) 표시 모드")
-                    .font(.system(size: 12, weight: .bold))
-                
-                Picker("", selection: $settings.displayMode) {
-                    ForEach(MenuBarDisplayMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.radioGroup)
-                
-                HStack(spacing: 20) {
-                    Toggle("퍼센트 수치 표시 (%)", isOn: $settings.showPercentText)
-                    Toggle("서비스 약어 라벨 (OC, G)", isOn: $settings.showShortLabel)
-                }
-                .font(.system(size: 11))
-            }
-            
-            Divider()
-            
-            // Section 2: 갱신 주기
-            VStack(alignment: .leading, spacing: 8) {
+            // Section 1: 갱신 주기
+            VStack(alignment: .leading, spacing: 6) {
                 Text("자동 새로고침 주기")
                     .font(.system(size: 12, weight: .bold))
                 
@@ -71,13 +50,13 @@ public struct SettingsView: View {
             
             Divider()
             
-            // Section 3: API 인증 (커스텀 설정)
+            // Section 2: API 인증 (선택 사항)
             VStack(alignment: .leading, spacing: 10) {
-                Text("서비스 인증 설정")
+                Text("서비스 인증 설정 (선택)")
                     .font(.system(size: 12, weight: .bold))
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("OpenCode Go API Key (선택 사항 - 미입력 시 로컬 DB/CLI 자동 감지):")
+                    Text("OpenCode Go API Key (미입력 시 로컬 DB/CLI 자동 감지):")
                         .font(.system(size: 10.5))
                         .foregroundColor(.secondary)
                     SecureField("sk-...", text: $viewModel.openCodeKeyInput)
@@ -86,7 +65,7 @@ public struct SettingsView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Google AI Studio API Key (선택 사항 - 미입력 시 Antigravity Keyring 자동 감지):")
+                    Text("Google AI Studio API Key (미입력 시 Antigravity Keyring 자동 감지):")
                         .font(.system(size: 10.5))
                         .foregroundColor(.secondary)
                     SecureField("AIza...", text: $viewModel.googleKeyInput)
@@ -94,12 +73,6 @@ public struct SettingsView: View {
                         .font(.system(size: 11))
                 }
             }
-            
-            Divider()
-            
-            // Section 4: 시스템
-            Toggle("로그인 시 Usages 자동 실행", isOn: $settings.launchAtLogin)
-                .font(.system(size: 11))
             
             Spacer()
             
@@ -128,7 +101,7 @@ public struct SettingsView: View {
                 .buttonStyle(.borderedProminent)
             }
         }
-        .padding(20)
-        .frame(width: 440, height: 490)
+        .padding(18)
+        .frame(width: 420, height: 320)
     }
 }
