@@ -99,88 +99,91 @@ public struct DetailPopoverView: View {
             
             Divider()
             
-            // MARK: - 2-Column Wide Grid Layout (2*1, 2*2, 2*3, 2*4)
-            VStack(spacing: 12) {
-                let activeOrder = settings.providerOrder.filter { settings.isProviderEnabled($0) }
-                
-                if activeOrder.isEmpty {
-                    VStack(spacing: 4) {
-                        Text(L10n.isKorean ? "활성화된 프로바이더가 없습니다." : "No active providers.")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Text(L10n.isKorean ? "아래 '프로바이더 활성화 및 관리'에서 사용할 서비스를 체크해 주세요." : "Check the services you want to track below.")
-                            .font(.system(size: 9.5))
-                            .foregroundColor(.secondary.opacity(0.8))
-                    }
-                    .padding(.vertical, 24)
-                } else {
-                    ForEach(activeOrder, id: \.self) { id in
-                        switch id {
-                        case "codex":
-                            GenericAISectionView(
-                                providerId: "codex",
-                                providerName: "Codex",
-                                envKeyName: "OPENAI_API_KEY",
-                                keyPrefix: "sk-",
-                                isDetected: ProviderDetector.isDetected(id: "codex")
-                            )
-                        case "claude":
-                            GenericAISectionView(
-                                providerId: "claude",
-                                providerName: "Claude",
-                                envKeyName: "ANTHROPIC_API_KEY",
-                                keyPrefix: "sk-ant-",
-                                isDetected: ProviderDetector.isDetected(id: "claude")
-                            )
-                        case "cursor":
-                            CursorSectionView()
-                        case "google_ai":
-                            GoogleAISectionView(snapshot: usageManager.googleAISnapshot)
-                        case "opencode":
-                            OpenCodeSectionView(snapshot: usageManager.openCodeSnapshot)
-                        case "openrouter":
-                            OpenRouterSectionView(snapshot: usageManager.openRouterSnapshot)
-                        case "copilot":
-                            GenericAISectionView(
-                                providerId: "copilot",
-                                providerName: "Copilot",
-                                envKeyName: "GITHUB_TOKEN",
-                                keyPrefix: "ghp_",
-                                isDetected: ProviderDetector.isDetected(id: "copilot")
-                            )
-                        case "perplexity":
-                            GenericAISectionView(
-                                providerId: "perplexity",
-                                providerName: "Perplexity",
-                                envKeyName: "PERPLEXITY_API_KEY",
-                                keyPrefix: "pplx-",
-                                isDetected: ProviderDetector.isDetected(id: "perplexity")
-                            )
-                        case "deepseek":
-                            GenericAISectionView(
-                                providerId: "deepseek",
-                                providerName: "DeepSeek",
-                                envKeyName: "DEEPSEEK_API_KEY",
-                                keyPrefix: "sk-",
-                                isDetected: ProviderDetector.isDetected(id: "deepseek")
-                            )
-                        default:
-                            EmptyView()
+            // MARK: - Scrollable Content Body (적당한 높이값 및 내부 스크롤 처리로 잘림 방지)
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 12) {
+                    let activeOrder = settings.providerOrder.filter { settings.isProviderEnabled($0) }
+                    
+                    if activeOrder.isEmpty {
+                        VStack(spacing: 4) {
+                            Text(L10n.isKorean ? "활성화된 프로바이더가 없습니다." : "No active providers.")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Text(L10n.isKorean ? "아래 '프로바이더 활성화 및 관리'에서 사용할 서비스를 체크해 주세요." : "Check the services you want to track below.")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.secondary.opacity(0.8))
+                        }
+                        .padding(.vertical, 24)
+                    } else {
+                        ForEach(activeOrder, id: \.self) { id in
+                            switch id {
+                            case "codex":
+                                GenericAISectionView(
+                                    providerId: "codex",
+                                    providerName: "Codex",
+                                    envKeyName: "OPENAI_API_KEY",
+                                    keyPrefix: "sk-",
+                                    isDetected: ProviderDetector.isDetected(id: "codex")
+                                )
+                            case "claude":
+                                GenericAISectionView(
+                                    providerId: "claude",
+                                    providerName: "Claude",
+                                    envKeyName: "ANTHROPIC_API_KEY",
+                                    keyPrefix: "sk-ant-",
+                                    isDetected: ProviderDetector.isDetected(id: "claude")
+                                )
+                            case "cursor":
+                                CursorSectionView()
+                            case "google_ai":
+                                GoogleAISectionView(snapshot: usageManager.googleAISnapshot)
+                            case "opencode":
+                                OpenCodeSectionView(snapshot: usageManager.openCodeSnapshot)
+                            case "openrouter":
+                                OpenRouterSectionView(snapshot: usageManager.openRouterSnapshot)
+                            case "copilot":
+                                GenericAISectionView(
+                                    providerId: "copilot",
+                                    providerName: "Copilot",
+                                    envKeyName: "GITHUB_TOKEN",
+                                    keyPrefix: "ghp_",
+                                    isDetected: ProviderDetector.isDetected(id: "copilot")
+                                )
+                            case "perplexity":
+                                GenericAISectionView(
+                                    providerId: "perplexity",
+                                    providerName: "Perplexity",
+                                    envKeyName: "PERPLEXITY_API_KEY",
+                                    keyPrefix: "pplx-",
+                                    isDetected: ProviderDetector.isDetected(id: "perplexity")
+                                )
+                            case "deepseek":
+                                GenericAISectionView(
+                                    providerId: "deepseek",
+                                    providerName: "DeepSeek",
+                                    envKeyName: "DEEPSEEK_API_KEY",
+                                    keyPrefix: "sk-",
+                                    isDetected: ProviderDetector.isDetected(id: "deepseek")
+                                )
+                            default:
+                                EmptyView()
+                            }
                         }
                     }
+                    
+                    Divider()
+                    
+                    // 하이브리드 프로바이더 활성화 및 관리 (접기/펼치기)
+                    providerHybridListView
                 }
-                
-                Divider()
-                
-                // 하이브리드 프로바이더 활성화 및 관리 (접기/펼치기)
-                providerHybridListView
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .frame(maxHeight: 460)
             
             Divider()
             
-            // MARK: - Footer (로그인 시 자동 시작을 단일 행으로 간결화)
+            // MARK: - Footer (로그인 시 자동 시작, 후원하기, 종료 - 상시 고정 노출)
             HStack(spacing: 8) {
                 Toggle(L10n.launchAtLogin, isOn: $launchAtLogin.isEnabled)
                     .toggleStyle(.checkbox)
@@ -217,6 +220,7 @@ public struct DetailPopoverView: View {
             .background(Color(NSColor.windowBackgroundColor))
         }
         .frame(width: 480)
+        .frame(maxHeight: 560)
         .background(Color(NSColor.windowBackgroundColor))
         .popover(isPresented: $uiState.showDetailedTrendPopover, arrowEdge: .leading) {
             if let summary = uiState.selectedTrendSummary {
@@ -238,6 +242,9 @@ public struct DetailPopoverView: View {
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         uiState.showProviderSettings.toggle()
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        AppDelegate.shared?.updatePopoverSize()
                     }
                 }) {
                     HStack(spacing: 3) {

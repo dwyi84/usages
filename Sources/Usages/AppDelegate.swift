@@ -3,12 +3,14 @@ import SwiftUI
 
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
+    public static weak var shared: AppDelegate?
     
     private var statusItem: NSStatusItem?
     private var popover = NSPopover()
     private let usageManager = UsageManager.shared
     
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        Self.shared = self
         NSApp.setActivationPolicy(.accessory)
         
         setupMainMenu()
@@ -18,6 +20,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         usageManager.onSnapshotUpdated = { [weak self] in
             Task { @MainActor in
                 self?.updateStatusIcon()
+                if self?.popover.isShown == true {
+                    self?.updatePopoverSize()
+                }
             }
         }
         
@@ -133,12 +138,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    private func updatePopoverSize() {
+    public func updatePopoverSize() {
         guard let view = popover.contentViewController?.view else { return }
         view.layoutSubtreeIfNeeded()
         let fitting = view.fittingSize
-        let screenHeight = NSScreen.main?.visibleFrame.height ?? 900
-        let targetHeight = fitting.height > 0 ? min(fitting.height, screenHeight - 60) : 500
+        let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
+        // 화면 해상도를 벗어나지 않도록 최대 높이를 550pt로 제한하고, 내부 스크롤로 처리
+        let maxHeight = min(screenHeight - 120, 550)
+        let targetHeight = fitting.height > 0 ? min(fitting.height, maxHeight) : min(500, maxHeight)
         popover.contentSize = NSSize(width: 480, height: targetHeight)
     }
     
