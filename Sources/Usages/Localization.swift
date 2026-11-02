@@ -46,6 +46,13 @@ public struct L10n {
     public static var enterOpenRouterKey: String { isKorean ? "OpenRouter API Key 입력 (sk-or-...)" : "Enter OpenRouter API Key (sk-or-...)" }
     public static var save: String { isKorean ? "저장" : "Save" }
     public static var connectKey: String { isKorean ? "API 키 설정" : "Configure Key" }
+    public static var paste: String { isKorean ? "붙여넣기" : "Paste" }
+    public static var usageTrend: String { isKorean ? "사용 트렌드 (Usage Trend)" : "Usage Trend" }
+    public static var today: String { isKorean ? "오늘" : "Today" }
+    public static var yesterday: String { isKorean ? "어제" : "Yesterday" }
+    public static var last30Days: String { isKorean ? "최근 30일" : "Last 30 Days" }
+    public static var moveUp: String { isKorean ? "위로 이동" : "Move Up" }
+    public static var moveDown: String { isKorean ? "아래로 이동" : "Move Down" }
     
     // Units & States
     public static var remaining: String { isKorean ? "남음" : "remaining" }

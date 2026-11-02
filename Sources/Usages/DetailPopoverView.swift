@@ -56,31 +56,53 @@ public struct DetailPopoverView: View {
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
-            .padding(.bottom, 6)
-            
-            // MARK: - Top Segmented Tabs: [ 한도 쿼터 ] | [ 토큰 & 비용 ]
-            Picker("", selection: $settings.selectedTabIndex) {
-                Text(L10n.tabQuotas).tag(0)
-                Text(L10n.tabTokenCost).tag(1)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
+            .padding(.bottom, 8)
             
             Divider()
             
-            // MARK: - Main Content Area
-            if settings.selectedTabIndex == 0 {
-                // TAB 0: 한도 쿼터 (Quotas)
-                quotasTabView
-            } else {
-                // TAB 1: 토큰 & 비용 (Tokens & Cost)
-                tokenCostTabView
+            // MARK: - Single Unified Screen (Cards in providerOrder)
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 10) {
+                    let activeOrder = settings.providerOrder.filter { settings.isProviderEnabled($0) }
+                    
+                    if activeOrder.isEmpty {
+                        VStack(spacing: 4) {
+                            Text(L10n.isKorean ? "활성화된 프로바이더가 없습니다." : "No active providers.")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Text(L10n.isKorean ? "아래 '프로바이더 활성화 및 관리'에서 사용할 서비스를 체크해 주세요." : "Check the services you want to track below.")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.secondary.opacity(0.8))
+                        }
+                        .padding(.vertical, 20)
+                    } else {
+                        ForEach(activeOrder, id: \.self) { id in
+                            switch id {
+                            case "opencode":
+                                OpenCodeSectionView(snapshot: usageManager.openCodeSnapshot)
+                            case "google_ai":
+                                GoogleAISectionView(snapshot: usageManager.googleAISnapshot)
+                            case "openrouter":
+                                OpenRouterSectionView(snapshot: usageManager.openRouterSnapshot)
+                            default:
+                                EmptyView()
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    // 하이브리드 프로바이더 활성화 목록
+                    providerHybridListView
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
+            .frame(maxHeight: 520)
             
             Divider()
             
-            // MARK: - Footer (설정, 커피 후원, 자동 시작, 업데이트 확인)
+            // MARK: - Footer
             VStack(spacing: 8) {
                 HStack(spacing: 8) {
                     Text(L10n.autoRefresh)
@@ -155,50 +177,11 @@ public struct DetailPopoverView: View {
         }
     }
     
-    // MARK: - Quotas Tab View
-    private var quotasTabView: some View {
-        VStack(spacing: 10) {
-            let hasOC = settings.isProviderEnabled("opencode")
-            let hasG = settings.isProviderEnabled("google_ai")
-            
-            if hasOC {
-                OpenCodeSectionView(snapshot: usageManager.openCodeSnapshot)
-            }
-            
-            if hasOC && hasG {
-                Divider()
-            }
-            
-            if hasG {
-                GoogleAISectionView(snapshot: usageManager.googleAISnapshot)
-            }
-            
-            if !hasOC && !hasG {
-                VStack(spacing: 4) {
-                    Text("활성화된 쿼터 프로바이더가 없습니다.")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                    Text("아래 목록에서 사용할 프로바이더를 체크해 주세요.")
-                        .font(.system(size: 9.5))
-                        .foregroundColor(.secondary.opacity(0.8))
-                }
-                .padding(.vertical, 16)
-            }
-            
-            Divider()
-            
-            // 하이브리드 프로바이더 활성화 목록 (체크된 항목 상위 노출, 나머지 후속 리스트업)
-            providerHybridListView
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-    }
-    
     // MARK: - Hybrid Provider List View
     private var providerHybridListView: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(L10n.isKorean ? "프로바이더 활성화 및 관리" : "Provider Activation & Discovery")
+                Text(L10n.isKorean ? "프로바이더 활성화 및 관리" : "Provider Activation & Management")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.secondary)
                 
@@ -267,146 +250,6 @@ public struct DetailPopoverView: View {
         }
     }
     
-    // MARK: - Token & Cost Tab View
-    private var tokenCostTabView: some View {
-        VStack(spacing: 12) {
-            let snap = usageManager.openRouterSnapshot
-            
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(L10n.openRouterTitle)
-                        .font(.system(size: 12, weight: .bold))
-                    
-                    Spacer()
-                    
-                    if snap.isConnected {
-                        Text("• Active")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.green)
-                    } else {
-                        Text("• Not Connected")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                if snap.isConnected {
-                    // Balance & Spend Matrix
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(L10n.balance)
-                                .font(.system(size: 9))
-                                .foregroundColor(.secondary)
-                            Text(String(format: "$%.2f", snap.balanceUSD))
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.accentColor)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        
-                        Divider().frame(height: 28)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(L10n.todaySpend)
-                                .font(.system(size: 9))
-                                .foregroundColor(.secondary)
-                            Text(String(format: "$%.2f", snap.todaySpendUSD))
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        
-                        Divider().frame(height: 28)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(L10n.monthSpend)
-                                .font(.system(size: 9))
-                                .foregroundColor(.secondary)
-                            Text(String(format: "$%.2f", snap.monthSpendUSD))
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(8)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(6)
-                    
-                    // Token Breakdown
-                    HStack {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(L10n.promptTokens)
-                                .font(.system(size: 8.5))
-                                .foregroundColor(.secondary)
-                            Text("\(snap.promptTokens.formatted()) t")
-                                .font(.system(size: 9.5, weight: .medium))
-                        }
-                        Spacer()
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(L10n.completionTokens)
-                                .font(.system(size: 8.5))
-                                .foregroundColor(.secondary)
-                            Text("\(snap.completionTokens.formatted()) t")
-                                .font(.system(size: 9.5, weight: .medium))
-                        }
-                        Spacer()
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(L10n.totalTokens)
-                                .font(.system(size: 8.5))
-                                .foregroundColor(.secondary)
-                            Text("\(snap.totalTokens.formatted()) t")
-                                .font(.system(size: 9.5, weight: .bold))
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                } else {
-                    Text(L10n.noTokenProviders)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .padding(.vertical, 4)
-                }
-            }
-            .padding(10)
-            .background(Color(NSColor.controlBackgroundColor).opacity(0.7))
-            .cornerRadius(6)
-            
-            // Inline API Key Configuration
-            VStack(alignment: .leading, spacing: 6) {
-                Text(L10n.connectKey)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.secondary)
-                
-                HStack(spacing: 6) {
-                    SecureField(L10n.enterOpenRouterKey, text: $uiState.openRouterKeyInput)
-                        .textFieldStyle(.roundedBorder)
-                        .controlSize(.small)
-                    
-                    Button(L10n.save) {
-                        settings.openRouterApiKey = uiState.openRouterKeyInput
-                        settings.setProviderEnabled("openrouter", enabled: !uiState.openRouterKeyInput.isEmpty)
-                        usageManager.reloadProviders()
-                        Task {
-                            await usageManager.refreshAll()
-                        }
-                        uiState.showKeySavedToast = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            uiState.showKeySavedToast = false
-                        }
-                    }
-                    .controlSize(.small)
-                }
-                
-                if uiState.showKeySavedToast {
-                    Text(L10n.isKorean ? "✓ 키가 저장되었습니다." : "✓ API Key saved.")
-                        .font(.system(size: 9))
-                        .foregroundColor(.green)
-                }
-            }
-            .padding(10)
-            .background(Color(NSColor.controlBackgroundColor).opacity(0.4))
-            .cornerRadius(6)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-    }
-    
     private func formatTime(_ date: Date) -> String {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss"
@@ -418,10 +261,32 @@ public struct DetailPopoverView: View {
 struct OpenCodeSectionView: View {
     let snapshot: ServiceUsageSnapshot
     var windows: OpenCodeWindows { snapshot.openCodeWindows }
+    @ObservedObject var settings = AppSettings.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 6) {
+                // Reorder chevrons
+                HStack(spacing: 2) {
+                    Button(action: { settings.moveProviderUp(id: "opencode") }) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(settings.providerOrder.first != "opencode" ? .primary : .secondary.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(settings.providerOrder.first == "opencode")
+                    .help(L10n.moveUp)
+                    
+                    Button(action: { settings.moveProviderDown(id: "opencode") }) {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(settings.providerOrder.last != "opencode" ? .primary : .secondary.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(settings.providerOrder.last == "opencode")
+                    .help(L10n.moveDown)
+                }
+                
                 Text(L10n.openCodeTitle)
                     .font(.system(size: 12, weight: .bold))
                 
@@ -464,7 +329,7 @@ struct OpenCodeSectionView: View {
     }
 }
 
-// MARK: - Google AI Pro Section
+// MARK: - Google AI Pro Section (5시간 -> 주간 -> 월간 순서)
 struct GoogleAISectionView: View {
     let snapshot: ServiceUsageSnapshot
     var groups: GoogleAIGroupLimits { snapshot.googleGroups }
@@ -473,47 +338,41 @@ struct GoogleAISectionView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 6) {
+                // Reorder chevrons
+                HStack(spacing: 2) {
+                    Button(action: { settings.moveProviderUp(id: "google_ai") }) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(settings.providerOrder.first != "google_ai" ? .primary : .secondary.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(settings.providerOrder.first == "google_ai")
+                    .help(L10n.moveUp)
+                    
+                    Button(action: { settings.moveProviderDown(id: "google_ai") }) {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(settings.providerOrder.last != "google_ai" ? .primary : .secondary.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(settings.providerOrder.last == "google_ai")
+                    .help(L10n.moveDown)
+                }
+                
                 Text(L10n.googleAITitle)
                     .font(.system(size: 12, weight: .bold))
                 
                 Spacer()
                 
                 if settings.googleBillingDayOfMonth > 0 && !groups.nextBillingDateString.isEmpty {
-                    Button(action: {
-                        uiState.selectedBillingDay = settings.googleBillingDayOfMonth
-                        uiState.isEditingGoogleBillingDay.toggle()
-                    }) {
-                        HStack(spacing: 3) {
-                            Text("• \(groups.nextBillingDateString)")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.purple)
-                            Image(systemName: "pencil")
-                                .font(.system(size: 8))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .help(L10n.googleBillingTooltip)
-                } else {
-                    Button(action: {
-                        let currentDay = Calendar.current.component(.day, from: Date())
-                        uiState.selectedBillingDay = currentDay
-                        uiState.isEditingGoogleBillingDay.toggle()
-                    }) {
-                        Text(L10n.setBillingDay)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.purple)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.purple.opacity(0.12))
-                            .cornerRadius(4)
-                    }
-                    .buttonStyle(.plain)
-                    .help(L10n.googleBillingTooltip)
+                    Text("• \(groups.nextBillingDateString)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.purple)
                 }
             }
             
+            // Inline billing day editor
             if uiState.isEditingGoogleBillingDay {
                 HStack(spacing: 6) {
                     Text(L10n.billingDayPrompt)
@@ -562,32 +421,310 @@ struct GoogleAISectionView: View {
                 .cornerRadius(6)
             }
             
-            VStack(spacing: 6) {
-                GroupSplitRow(
-                    title: L10n.geminiModels,
-                    weekly: groups.geminiWeeklyRemainingPercent,
-                    weeklyInfo: groups.geminiWeeklyResetString,
-                    fiveHour: groups.geminiFiveHourRemainingPercent,
-                    fiveHourInfo: groups.geminiFiveHourResetString
-                )
+            // 순서: 5시간 -> 주간 -> 월간
+            VStack(spacing: 7) {
+                // 1. 5시간 윈도우 (5-Hour Window)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(L10n.fiveHourWindow)
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    
+                    CleanProgressBar(
+                        title: L10n.geminiModels,
+                        percent: groups.geminiFiveHourRemainingPercent,
+                        resetInfo: groups.geminiFiveHourResetString
+                    )
+                    
+                    CleanProgressBar(
+                        title: L10n.claudeAndGpt,
+                        percent: groups.claudeFiveHourRemainingPercent,
+                        resetInfo: groups.claudeFiveHourResetString
+                    )
+                }
                 
-                GroupSplitRow(
-                    title: L10n.claudeAndGpt,
-                    weekly: groups.claudeWeeklyRemainingPercent,
-                    weeklyInfo: groups.claudeWeeklyResetString,
-                    fiveHour: groups.claudeFiveHourRemainingPercent,
-                    fiveHourInfo: groups.claudeFiveHourResetString
-                )
+                Divider()
                 
-                CleanProgressBar(
-                    title: L10n.geminiArgon,
-                    percent: groups.argonWeeklyRemainingPercent,
-                    resetInfo: groups.argonWeeklyResetString
-                )
+                // 2. 주간 한도 (Weekly Limits)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(L10n.weekly)
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    
+                    CleanProgressBar(
+                        title: L10n.geminiModels,
+                        percent: groups.geminiWeeklyRemainingPercent,
+                        resetInfo: groups.geminiWeeklyResetString
+                    )
+                    
+                    CleanProgressBar(
+                        title: L10n.claudeAndGpt,
+                        percent: groups.claudeWeeklyRemainingPercent,
+                        resetInfo: groups.claudeWeeklyResetString
+                    )
+                    
+                    CleanProgressBar(
+                        title: L10n.geminiArgon,
+                        percent: groups.argonWeeklyRemainingPercent,
+                        resetInfo: groups.argonWeeklyResetString
+                    )
+                }
+                
+                Divider()
+                
+                // 3. 월간 갱신 (Monthly Renewal)
+                HStack {
+                    Text(L10n.monthly)
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    if settings.googleBillingDayOfMonth > 0 && !groups.nextBillingDateString.isEmpty {
+                        Button(action: {
+                            uiState.selectedBillingDay = settings.googleBillingDayOfMonth
+                            uiState.isEditingGoogleBillingDay.toggle()
+                        }) {
+                            HStack(spacing: 3) {
+                                Text(groups.nextBillingDateString)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.purple)
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .help(L10n.googleBillingTooltip)
+                    } else {
+                        Button(action: {
+                            let currentDay = Calendar.current.component(.day, from: Date())
+                            uiState.selectedBillingDay = currentDay
+                            uiState.isEditingGoogleBillingDay.toggle()
+                        }) {
+                            Text(L10n.setBillingDay)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.purple)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.purple.opacity(0.12))
+                                .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                        .help(L10n.googleBillingTooltip)
+                    }
+                }
             }
             .padding(8)
             .background(Color(NSColor.controlBackgroundColor))
             .cornerRadius(6)
+        }
+    }
+}
+
+// MARK: - Mini Sparkline View (30 Daily Bars / Dots)
+struct MiniSparklineView: View {
+    let bars: [Double]
+    
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(0..<min(30, bars.count), id: \.self) { idx in
+                let val = bars[idx]
+                if val <= 0.001 {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.35))
+                        .frame(width: 2.5, height: 2.5)
+                } else {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.accentColor)
+                        .frame(width: 2.5, height: max(4.0, CGFloat(val) * 14.0))
+                }
+            }
+        }
+        .frame(height: 14, alignment: .bottom)
+    }
+}
+
+// MARK: - OpenRouter Section View (Usage Trend & Daily Breakdown)
+struct OpenRouterSectionView: View {
+    let snapshot: TokenCostSnapshot
+    @ObservedObject var uiState = PopoverUIState.shared
+    @ObservedObject var settings = AppSettings.shared
+    @ObservedObject var usageManager = UsageManager.shared
+    
+    var trend: UsageTrendSummary { snapshot.trendSummary }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Header
+            HStack(spacing: 6) {
+                // Reorder chevrons
+                HStack(spacing: 2) {
+                    Button(action: { settings.moveProviderUp(id: "openrouter") }) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(settings.providerOrder.first != "openrouter" ? .primary : .secondary.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(settings.providerOrder.first == "openrouter")
+                    .help(L10n.moveUp)
+                    
+                    Button(action: { settings.moveProviderDown(id: "openrouter") }) {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(settings.providerOrder.last != "openrouter" ? .primary : .secondary.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(settings.providerOrder.last == "openrouter")
+                    .help(L10n.moveDown)
+                }
+                
+                Text(L10n.openRouterTitle)
+                    .font(.system(size: 12, weight: .bold))
+                
+                Spacer()
+                
+                if snapshot.isConnected {
+                    Text(String(format: "%@: $%.2f", L10n.balance, snapshot.balanceUSD))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.accentColor)
+                } else {
+                    Text("• " + (L10n.isKorean ? "키 미설정" : "Key Not Set"))
+                        .font(.system(size: 9.5))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // Usage Trend Card (첨부 이미지 형태 그대로 구현)
+            VStack(spacing: 6) {
+                HStack {
+                    Text(L10n.usageTrend)
+                        .font(.system(size: 10.5, weight: .bold))
+                    
+                    Spacer()
+                    
+                    MiniSparklineView(bars: trend.dailyBars)
+                }
+                
+                Divider()
+                
+                // Today
+                HStack {
+                    Text(L10n.today)
+                        .font(.system(size: 10.5, weight: .medium))
+                    Spacer()
+                    Text("\(formatCurrency(trend.todaySpendUSD)) · \(formatTokenCount(trend.todayTokens))")
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                }
+                
+                // Yesterday
+                HStack {
+                    Text(L10n.yesterday)
+                        .font(.system(size: 10.5, weight: .medium))
+                    Spacer()
+                    Text("\(formatCurrency(trend.yesterdaySpendUSD)) · \(formatTokenCount(trend.yesterdayTokens))")
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                }
+                
+                // Last 30 Days
+                HStack {
+                    Text(L10n.last30Days)
+                        .font(.system(size: 10.5, weight: .medium))
+                    Spacer()
+                    Text("\(formatCurrency(trend.last30DaysSpendUSD)) · \(formatTokenCount(trend.last30DaysTokens))")
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                }
+            }
+            .padding(8)
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(6)
+            
+            // API Key Input with Paste Support & Visibility Toggle
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    if uiState.showOpenRouterKeyPlain {
+                        TextField(L10n.enterOpenRouterKey, text: $uiState.openRouterKeyInput)
+                            .textFieldStyle(.roundedBorder)
+                            .controlSize(.small)
+                    } else {
+                        SecureField(L10n.enterOpenRouterKey, text: $uiState.openRouterKeyInput)
+                            .textFieldStyle(.roundedBorder)
+                            .controlSize(.small)
+                    }
+                    
+                    // Toggle plain/secret
+                    Button(action: {
+                        uiState.showOpenRouterKeyPlain.toggle()
+                    }) {
+                        Image(systemName: uiState.showOpenRouterKeyPlain ? "eye.slash" : "eye")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .help(uiState.showOpenRouterKeyPlain ? "키 숨기기" : "키 보기")
+                    
+                    // Paste from clipboard button
+                    Button(action: {
+                        if let str = NSPasteboard.general.string(forType: .string) {
+                            uiState.openRouterKeyInput = str.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "doc.on.clipboard")
+                                .font(.system(size: 9))
+                            Text(L10n.paste)
+                                .font(.system(size: 9.5))
+                        }
+                    }
+                    .controlSize(.small)
+                    .help(L10n.isKorean ? "클립보드에서 붙여넣기" : "Paste from Clipboard")
+                    
+                    // Save button
+                    Button(L10n.save) {
+                        let cleaned = uiState.openRouterKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                        settings.openRouterApiKey = cleaned
+                        settings.setProviderEnabled("openrouter", enabled: !cleaned.isEmpty)
+                        usageManager.reloadProviders()
+                        Task {
+                            await usageManager.refreshAll()
+                        }
+                        uiState.showKeySavedToast = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            uiState.showKeySavedToast = false
+                        }
+                    }
+                    .controlSize(.small)
+                }
+                
+                if uiState.showKeySavedToast {
+                    Text(L10n.isKorean ? "✓ OpenRouter API 키가 성공적으로 저장되었습니다." : "✓ OpenRouter API Key saved successfully.")
+                        .font(.system(size: 9))
+                        .foregroundColor(.green)
+                }
+            }
+            .padding(6)
+            .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+            .cornerRadius(6)
+        }
+    }
+    
+    private func formatCurrency(_ usd: Double) -> String {
+        return String(format: "$%.2f", usd)
+    }
+    
+    private func formatTokenCount(_ count: Int) -> String {
+        if count >= 1_000_000_000 {
+            return String(format: "%.1fB tokens", Double(count) / 1_000_000_000.0)
+        } else if count >= 1_000_000 {
+            return String(format: "%.1fM tokens", Double(count) / 1_000_000.0)
+        } else if count >= 1_000 {
+            return String(format: "%.1fK tokens", Double(count) / 1_000.0)
+        } else {
+            return "\(count) tokens"
         }
     }
 }
@@ -642,87 +779,5 @@ struct CleanProgressBar: View {
                 Spacer()
             }
         }
-    }
-}
-
-struct GroupSplitRow: View {
-    let title: String
-    let weekly: Double
-    let weeklyInfo: String
-    let fiveHour: Double
-    let fiveHourInfo: String
-    
-    private func fmt(_ val: Double) -> String {
-        if val.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(format: "%.0f%%", val)
-        }
-        return String(format: "%.2f%%", val)
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.system(size: 9.5, weight: .semibold))
-                .foregroundColor(.secondary)
-            
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text(L10n.isKorean ? "주간:" : "Weekly:")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(fmt(weekly))
-                            .font(.system(size: 9.5, weight: .bold))
-                    }
-                    MiniSegmentLine(percent: weekly)
-                    Text(weeklyInfo)
-                        .font(.system(size: 8))
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text(L10n.isKorean ? "5시간:" : "5-Hour:")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(fmt(fiveHour))
-                            .font(.system(size: 9.5, weight: .bold))
-                    }
-                    MiniSegmentLine(percent: fiveHour)
-                    Text(fiveHourInfo)
-                        .font(.system(size: 8))
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-        }
-    }
-}
-
-struct MiniSegmentLine: View {
-    let percent: Double
-    
-    var color: Color {
-        if percent <= 15.0 { return .red }
-        if percent <= 35.0 { return .orange }
-        return .green
-    }
-    
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Color(NSColor.separatorColor).opacity(0.25))
-                    .frame(height: 3.5)
-                
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(color)
-                    .frame(width: max(0, geo.size.width * CGFloat(percent / 100.0)), height: 3.5)
-            }
-        }
-        .frame(height: 3.5)
     }
 }

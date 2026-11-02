@@ -410,16 +410,19 @@ public final class GoogleAIProvider: @unchecked Sendable {
     
     private func formatCountdown(fraction: Double, resetIso: String?) -> String {
         if fraction >= 1.0 {
-            return "Quota available"
+            return L10n.quotaAvailable
         }
         guard let isoStr = resetIso, let date = ISO8601DateFormatter().date(from: isoStr) else {
-            return "Quota available"
+            return L10n.quotaAvailable
         }
         
         let diff = max(0, Int(date.timeIntervalSinceNow))
         let hours = diff / 3600
         let mins = (diff % 3600) / 60
         
+        if L10n.isKorean {
+            return "\(hours)시간 \(mins)분 후 초기화"
+        }
         return "Refreshes in \(hours)h \(mins)m"
     }
 }

@@ -73,19 +73,24 @@ public final class OpenCodeProvider: @unchecked Sendable {
                 let weekRem = max(0.0, 100.0 - weekUsed)
                 let monthRem = max(0.0, 100.0 - monthUsed)
                 
-                let rollReset = formatCountdown(isoString: rolling?["resetsAt"] as? String, fallback: "3h 37m")
-                let weekReset = formatCountdown(isoString: weekly?["resetsAt"] as? String, fallback: "6d 15h")
-                let monthReset = formatCountdown(isoString: monthly?["resetsAt"] as? String, fallback: "6d 13h")
+                let rollReset = formatCountdown(isoString: rolling?["resetsAt"] as? String, fallbackDays: 0, fallbackHours: 3, fallbackMins: 37)
+                let weekReset = formatCountdown(isoString: weekly?["resetsAt"] as? String, fallbackDays: 6, fallbackHours: 15, fallbackMins: 0)
+                let monthReset = formatCountdown(isoString: monthly?["resetsAt"] as? String, fallbackDays: 6, fallbackHours: 13, fallbackMins: 0)
                 let daysRem = calculateDaysRemaining(isoString: monthly?["resetsAt"] as? String, fallback: 6)
+                
+                let fiveHourStr = L10n.isKorean ? "\(rollReset) 후 리셋" : "Resets in \(rollReset)"
+                let weeklyStr = L10n.isKorean ? "\(weekReset) 후 리셋" : "Resets in \(weekReset)"
+                let monthlyStr = L10n.isKorean ? "\(monthReset) 후 갱신" : "Renews in \(monthReset)"
+                let billingStr = L10n.isKorean ? "\(monthReset) 후 갱신" : "Renews in \(monthReset)"
                 
                 let windows = OpenCodeWindows(
                     fiveHourRemainingPercent: rollRem,
-                    fiveHourResetString: "Resets in \(rollReset)",
+                    fiveHourResetString: fiveHourStr,
                     weeklyRemainingPercent: weekRem,
-                    weeklyResetString: "Resets in \(weekReset)",
+                    weeklyResetString: weeklyStr,
                     monthlyRemainingPercent: monthRem,
-                    monthlyResetString: "Renews in \(monthReset)",
-                    nextBillingDateString: "\(monthReset) 후 갱신",
+                    monthlyResetString: monthlyStr,
+                    nextBillingDateString: billingStr,
                     daysUntilBilling: daysRem
                 )
                 
@@ -93,7 +98,7 @@ public final class OpenCodeProvider: @unchecked Sendable {
                     service: .openCode,
                     planName: "Go Subscription",
                     remainingPercent: monthRem,
-                    billingDateString: "\(monthReset) 후 갱신",
+                    billingDateString: billingStr,
                     daysUntilBilling: daysRem,
                     status: monthRem <= 15 ? .critical : (monthRem <= 35 ? .warning : .normal),
                     lastUpdated: Date(),
@@ -107,14 +112,22 @@ public final class OpenCodeProvider: @unchecked Sendable {
     }
     
     private func fetchFallbackSnapshot() async -> ServiceUsageSnapshot {
+        let rollReset = L10n.isKorean ? "3시간 37분" : "3h 37m"
+        let weekReset = L10n.isKorean ? "6일 15시간" : "6d 15h"
+        let monthReset = L10n.isKorean ? "6일 13시간" : "6d 13h"
+        let fiveHourStr = L10n.isKorean ? "\(rollReset) 후 리셋" : "Resets in \(rollReset)"
+        let weeklyStr = L10n.isKorean ? "\(weekReset) 후 리셋" : "Resets in \(weekReset)"
+        let monthlyStr = L10n.isKorean ? "\(monthReset) 후 갱신" : "Renews in \(monthReset)"
+        let billingStr = L10n.isKorean ? "\(monthReset) 후 갱신" : "Renews in \(monthReset)"
+        
         let windows = OpenCodeWindows(
             fiveHourRemainingPercent: 95.0,
-            fiveHourResetString: "Resets in 3h 37m",
+            fiveHourResetString: fiveHourStr,
             weeklyRemainingPercent: 98.0,
-            weeklyResetString: "Resets in 6d 15h",
+            weeklyResetString: weeklyStr,
             monthlyRemainingPercent: 36.0,
-            monthlyResetString: "Renews in 6d 13h",
-            nextBillingDateString: "6d 13h 후 갱신",
+            monthlyResetString: monthlyStr,
+            nextBillingDateString: billingStr,
             daysUntilBilling: 6
         )
         
@@ -122,7 +135,7 @@ public final class OpenCodeProvider: @unchecked Sendable {
             service: .openCode,
             planName: "Go Subscription",
             remainingPercent: 36.0,
-            billingDateString: "6d 13h 후 갱신",
+            billingDateString: billingStr,
             daysUntilBilling: 6,
             status: .normal,
             lastUpdated: Date(),
@@ -154,18 +167,32 @@ public final class OpenCodeProvider: @unchecked Sendable {
         return nil
     }
     
-    private func formatCountdown(isoString: String?, fallback: String) -> String {
-        guard let str = isoString, let date = ISO8601DateFormatter().date(from: str) else {
-            return fallback
+    private func formatCountdown(isoString: String?, fallbackDays: Int, fallbackHours: Int, fallbackMins: Int) -> String {
+        let days: Int
+        let hours: Int
+        let mins: Int
+        if let str = isoString, let date = ISO8601DateFormatter().date(from: str) {
+            let diff = max(0, Int(date.timeIntervalSinceNow))
+            days = diff / 86400
+            hours = (diff % 86400) / 3600
+            mins = (diff % 3600) / 60
+        } else {
+            days = fallbackDays
+            hours = fallbackHours
+            mins = fallbackMins
         }
-        let diff = max(0, Int(date.timeIntervalSinceNow))
-        let days = diff / 86400
-        let hours = (diff % 86400) / 3600
-        let mins = (diff % 3600) / 60
-        if days > 0 {
-            return "\(days)d \(hours)h"
+        
+        if L10n.isKorean {
+            if days > 0 {
+                return "\(days)일 \(hours)시간"
+            }
+            return "\(hours)시간 \(mins)분"
+        } else {
+            if days > 0 {
+                return "\(days)d \(hours)h"
+            }
+            return "\(hours)h \(mins)m"
         }
-        return "\(hours)h \(mins)m"
     }
     
     private func calculateDaysRemaining(isoString: String?, fallback: Int) -> Int {

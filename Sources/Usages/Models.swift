@@ -86,17 +86,17 @@ public struct OpenCodeWindows {
 // MARK: - Google AI Pro Detail Groups (Gemini, Claude & GPT, Argon)
 public struct GoogleAIGroupLimits {
     public var geminiWeeklyRemainingPercent: Double = 93.52
-    public var geminiWeeklyResetString: String = "Refreshes in 115h 45m"
+    public var geminiWeeklyResetString: String = L10n.isKorean ? "115시간 45분 후 초기화" : "Refreshes in 115h 45m"
     public var geminiFiveHourRemainingPercent: Double = 90.73
-    public var geminiFiveHourResetString: String = "Refreshes in 3h 56m"
+    public var geminiFiveHourResetString: String = L10n.isKorean ? "3시간 56분 후 초기화" : "Refreshes in 3h 56m"
     
     public var claudeWeeklyRemainingPercent: Double = 100.0
-    public var claudeWeeklyResetString: String = "Quota available"
+    public var claudeWeeklyResetString: String = L10n.quotaAvailable
     public var claudeFiveHourRemainingPercent: Double = 100.0
-    public var claudeFiveHourResetString: String = "Quota available"
+    public var claudeFiveHourResetString: String = L10n.quotaAvailable
     
     public var argonWeeklyRemainingPercent: Double = 59.25
-    public var argonWeeklyResetString: String = "Refreshes in 70h 46m"
+    public var argonWeeklyResetString: String = L10n.isKorean ? "70시간 46분 후 초기화" : "Refreshes in 70h 46m"
     
     public var overallRemainingPercent: Double {
         return min(argonWeeklyRemainingPercent, geminiWeeklyRemainingPercent)
@@ -176,6 +176,34 @@ public struct ServiceUsageSnapshot {
 }
 
 // MARK: - Token & Cost Snapshot (OpenRouter, OpenAI, etc.)
+public struct UsageTrendSummary: Sendable {
+    public var todaySpendUSD: Double
+    public var todayTokens: Int
+    public var yesterdaySpendUSD: Double
+    public var yesterdayTokens: Int
+    public var last30DaysSpendUSD: Double
+    public var last30DaysTokens: Int
+    public var dailyBars: [Double] // 30 values, 0.0 to 1.0
+    
+    public init(
+        todaySpendUSD: Double = 0.0,
+        todayTokens: Int = 0,
+        yesterdaySpendUSD: Double = 0.0,
+        yesterdayTokens: Int = 0,
+        last30DaysSpendUSD: Double = 0.0,
+        last30DaysTokens: Int = 0,
+        dailyBars: [Double] = []
+    ) {
+        self.todaySpendUSD = todaySpendUSD
+        self.todayTokens = todayTokens
+        self.yesterdaySpendUSD = yesterdaySpendUSD
+        self.yesterdayTokens = yesterdayTokens
+        self.last30DaysSpendUSD = last30DaysSpendUSD
+        self.last30DaysTokens = last30DaysTokens
+        self.dailyBars = dailyBars.isEmpty ? Array(repeating: 0.0, count: 30) : dailyBars
+    }
+}
+
 public struct TokenCostSnapshot {
     public var providerId: String
     public var providerName: String
@@ -190,6 +218,7 @@ public struct TokenCostSnapshot {
     public var status: GaugeStatus
     public var lastUpdated: Date
     public var isConnected: Bool
+    public var trendSummary: UsageTrendSummary
     
     public init(
         providerId: String = "openrouter",
@@ -204,7 +233,8 @@ public struct TokenCostSnapshot {
         requestsCount: Int = 0,
         status: GaugeStatus = .normal,
         lastUpdated: Date = Date(),
-        isConnected: Bool = false
+        isConnected: Bool = false,
+        trendSummary: UsageTrendSummary = UsageTrendSummary()
     ) {
         self.providerId = providerId
         self.providerName = providerName
@@ -219,6 +249,7 @@ public struct TokenCostSnapshot {
         self.status = status
         self.lastUpdated = lastUpdated
         self.isConnected = isConnected
+        self.trendSummary = trendSummary
     }
 }
 
@@ -227,6 +258,7 @@ public final class PopoverUIState: ObservableObject {
     public static let shared = PopoverUIState()
     @Published public var showProviderSettings = false
     @Published public var openRouterKeyInput = ""
+    @Published public var showOpenRouterKeyPlain = false
     @Published public var showKeySavedToast = false
     @Published public var isEditingGoogleBillingDay = false
     @Published public var selectedBillingDay = 1
@@ -243,6 +275,10 @@ public final class AppSettings: ObservableObject {
     
     @Published public var enabledProviderIds: Set<String> {
         didSet { defaults.set(Array(enabledProviderIds), forKey: "enabledProviderIds") }
+    }
+    
+    @Published public var providerOrder: [String] {
+        didSet { defaults.set(providerOrder, forKey: "providerOrder") }
     }
     
     @Published public var selectedTabIndex: Int {
@@ -268,9 +304,38 @@ public final class AppSettings: ObservableObject {
             self.enabledProviderIds = ["opencode", "google_ai"]
         }
         
+        let defaultOrder = ["opencode", "google_ai", "openrouter"]
+        if let savedOrder = defaults.stringArray(forKey: "providerOrder"), !savedOrder.isEmpty {
+            var merged = savedOrder
+            for def in defaultOrder where !merged.contains(def) {
+                merged.append(def)
+            }
+            self.providerOrder = merged
+        } else {
+            self.providerOrder = defaultOrder
+        }
+        
         self.selectedTabIndex = defaults.integer(forKey: "selectedTabIndex")
         self.openRouterApiKey = defaults.string(forKey: "openRouterApiKey") ?? ""
         self.googleBillingDayOfMonth = defaults.integer(forKey: "googleBillingDayOfMonth")
+    }
+    
+    public func moveProviderUp(id: String) {
+        guard let idx = providerOrder.firstIndex(of: id), idx > 0 else { return }
+        providerOrder.swapAt(idx, idx - 1)
+        objectWillChange.send()
+        DispatchQueue.main.async {
+            UsageManager.shared.onSnapshotUpdated?()
+        }
+    }
+    
+    public func moveProviderDown(id: String) {
+        guard let idx = providerOrder.firstIndex(of: id), idx < providerOrder.count - 1 else { return }
+        providerOrder.swapAt(idx, idx + 1)
+        objectWillChange.send()
+        DispatchQueue.main.async {
+            UsageManager.shared.onSnapshotUpdated?()
+        }
     }
     
     public func isProviderEnabled(_ id: String) -> Bool {

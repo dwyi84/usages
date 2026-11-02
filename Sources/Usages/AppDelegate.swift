@@ -11,6 +11,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         
+        setupMainMenu()
         setupPopover()
         setupStatusItem()
         
@@ -23,6 +24,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             await usageManager.refreshAll()
         }
+    }
+    
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+        let editMenuItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
+        NSApp.mainMenu = mainMenu
     }
     
     private func setupPopover() {
@@ -51,30 +68,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         
         let settings = AppSettings.shared
         
-        if settings.isProviderEnabled("opencode") {
-            let oc = usageManager.openCodeSnapshot
-            gaugeItems.append(.init(percent: oc.remainingPercent, status: oc.status))
-            tooltips.append("· OpenCode Go: \(Int(oc.remainingPercent))% \(L10n.remaining) (\(oc.openCodeWindows.monthlyResetString))")
-            nearestBillingDays = min(nearestBillingDays, oc.daysUntilBilling)
-        }
-        
-        if settings.isProviderEnabled("google_ai") {
-            let g = usageManager.googleAISnapshot
-            gaugeItems.append(.init(percent: g.remainingPercent, status: g.status))
-            if !g.googleGroups.nextBillingDateString.isEmpty {
-                tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining) (\(g.googleGroups.nextBillingDateString))")
-                nearestBillingDays = min(nearestBillingDays, g.daysUntilBilling)
-            } else {
-                tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining)")
+        for id in settings.providerOrder {
+            guard settings.isProviderEnabled(id) else { continue }
+            switch id {
+            case "opencode":
+                let oc = usageManager.openCodeSnapshot
+                gaugeItems.append(.init(percent: oc.remainingPercent, status: oc.status))
+                tooltips.append("· OpenCode Go: \(Int(oc.remainingPercent))% \(L10n.remaining) (\(oc.openCodeWindows.monthlyResetString))")
+                nearestBillingDays = min(nearestBillingDays, oc.daysUntilBilling)
+            case "google_ai":
+                let g = usageManager.googleAISnapshot
+                gaugeItems.append(.init(percent: g.remainingPercent, status: g.status))
+                if !g.googleGroups.nextBillingDateString.isEmpty {
+                    tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining) (\(g.googleGroups.nextBillingDateString))")
+                    nearestBillingDays = min(nearestBillingDays, g.daysUntilBilling)
+                } else {
+                    tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining)")
+                }
+            case "openrouter":
+                let or = usageManager.openRouterSnapshot
+                let bal = or.balanceUSD
+                let pct = min(100.0, (bal / 10.0) * 100.0) // $10 기준 정규화
+                gaugeItems.append(.init(percent: pct, status: or.status))
+                tooltips.append("· OpenRouter: $\(String(format: "%.2f", bal))")
+            default:
+                break
             }
-        }
-        
-        if settings.isProviderEnabled("openrouter") {
-            let or = usageManager.openRouterSnapshot
-            let bal = or.balanceUSD
-            let pct = min(100.0, (bal / 10.0) * 100.0) // $10 기준 정규화
-            gaugeItems.append(.init(percent: pct, status: or.status))
-            tooltips.append("· OpenRouter: $\(String(format: "%.2f", bal))")
         }
         
         let img = BatteryGaugeRenderer.renderDynamicBars(
@@ -100,6 +119,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             popover.performClose(sender)
         } else {
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+            NSApp.activate(ignoringOtherApps: true)
             popover.contentViewController?.view.window?.makeKey()
         }
     }
