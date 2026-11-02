@@ -54,9 +54,7 @@ public final class OpenCodeProvider {
                 let weekPct = (weekly?["percent"] as? Double) ?? ((weekly?["percent"] as? Int).map(Double.init) ?? 28.0)
                 let monthPct = (monthly?["percent"] as? Double) ?? ((monthly?["percent"] as? Int).map(Double.init) ?? 32.0)
                 
-                let monthlyResetsAt = monthly?["resetsAt"] as? String ?? ""
-                var daysUntilReset = calculateDaysUntilReset(isoString: monthlyResetsAt)
-                if daysUntilReset <= 0 { daysUntilReset = getDaysUntilMonthEnd() }
+                let (billingDateStr, daysUntilBilling) = AppSettings.calculateNextBilling(dayOfMonth: AppSettings.shared.openCodeBillingDay)
                 
                 let windows = OpenCodeWindows(
                     rollingPercent: rollPct,
@@ -64,8 +62,9 @@ public final class OpenCodeProvider {
                     weeklyPercent: weekPct,
                     weeklyResetString: formatResetTime(isoString: weekly?["resetsAt"] as? String, fallback: "주간 리셋"),
                     monthlyPercent: monthPct,
-                    monthlyResetString: "D-\(daysUntilReset)일 후 갱신",
-                    daysUntilReset: daysUntilReset
+                    monthlyResetString: "\(billingDateStr) (D-\(daysUntilBilling))",
+                    nextBillingDateString: billingDateStr,
+                    daysUntilBilling: daysUntilBilling
                 )
                 
                 let localToday = await getCliStats(days: 0)
@@ -73,12 +72,12 @@ public final class OpenCodeProvider {
                 return ServiceUsageSnapshot(
                     service: .openCode,
                     planName: "OpenCode Go Plan",
-                    usedPercent: monthPct, // 아이콘에 쓸 대표 수치 = 월간 사용률
+                    usedPercent: monthPct,
                     currentUsed: monthPct,
                     maxLimit: 100.0,
                     unit: "%",
-                    resetTimeString: "월간 갱신 D-\(daysUntilReset)",
-                    daysUntilReset: daysUntilReset,
+                    billingDateString: billingDateStr,
+                    daysUntilBilling: daysUntilBilling,
                     status: monthPct >= 90.0 ? .critical : (monthPct >= 75.0 ? .warning : .normal),
                     statusMessage: "월간 \(Int(monthPct))% 소모",
                     lastUpdated: Date(),
@@ -117,7 +116,7 @@ public final class OpenCodeProvider {
         let monthlyCap = 10000.0
         let monthlyPercent = min(100.0, max(12.0, (Double(all.todaySteps) / monthlyCap) * 100.0))
         
-        let daysUntilReset = getDaysUntilMonthEnd()
+        let (billingDateStr, daysUntilBilling) = AppSettings.calculateNextBilling(dayOfMonth: AppSettings.shared.openCodeBillingDay)
         
         let windows = OpenCodeWindows(
             rollingPercent: rollingPercent,
@@ -125,8 +124,9 @@ public final class OpenCodeProvider {
             weeklyPercent: weeklyPercent,
             weeklyResetString: "매주 월요일 00:00 KST 리셋",
             monthlyPercent: monthlyPercent,
-            monthlyResetString: "D-\(daysUntilReset)일 후 월간 리셋",
-            daysUntilReset: daysUntilReset
+            monthlyResetString: "\(billingDateStr) (D-\(daysUntilBilling))",
+            nextBillingDateString: billingDateStr,
+            daysUntilBilling: daysUntilBilling
         )
         
         let status: GaugeStatus = monthlyPercent >= 90.0 ? .critical : (monthlyPercent >= 75.0 ? .warning : .normal)
@@ -134,12 +134,12 @@ public final class OpenCodeProvider {
         return ServiceUsageSnapshot(
             service: .openCode,
             planName: "OpenCode Go Plan",
-            usedPercent: monthlyPercent, // 메인 아이콘 표시용 월간
+            usedPercent: monthlyPercent,
             currentUsed: Double(today.todaySteps),
             maxLimit: monthlyCap,
             unit: "스텝",
-            resetTimeString: "월간 갱신 D-\(daysUntilReset)",
-            daysUntilReset: daysUntilReset,
+            billingDateString: billingDateStr,
+            daysUntilBilling: daysUntilBilling,
             status: status,
             statusMessage: "월간 \(Int(monthlyPercent))% (오늘 \(today.todaySteps)스텝)",
             lastUpdated: Date(),

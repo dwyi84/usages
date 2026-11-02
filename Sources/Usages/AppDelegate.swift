@@ -56,21 +56,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let oc = usageManager.openCodeSnapshot
         let g = usageManager.googleAISnapshot
         
-        // 월간 사용률 및 가장 가까운 갱신일(D-day)
+        // 월간 사용률 및 가장 가까운 구독 결제일/만료일(D-day)
         let ocMonthly = oc.openCodeWindows.monthlyPercent > 0 ? oc.openCodeWindows.monthlyPercent : oc.usedPercent
         let gMonthly = g.googleCategories.monthlyPercent > 0 ? g.googleCategories.monthlyPercent : g.usedPercent
-        let nearestDays = min(oc.daysUntilReset, g.daysUntilReset)
+        let nearestBillingDays = min(oc.daysUntilBilling, g.daysUntilBilling)
         
         let img = BatteryGaugeRenderer.renderUnifiedVerticalBars(
             openCodeMonthlyPercent: ocMonthly,
             openCodeStatus: oc.status,
             googleMonthlyPercent: gMonthly,
             googleStatus: g.status,
-            daysUntilReset: nearestDays
+            daysUntilReset: nearestBillingDays
         )
         
         button.image = img
-        button.toolTip = "AI Usages\n· OpenCode Go 월간: \(Int(ocMonthly))% 소모 (D-\(oc.daysUntilReset))\n· Google AI Pro 월간: \(Int(gMonthly))% 소모 (D-\(g.daysUntilReset))\n클릭하여 상세 보기"
+        button.toolTip = "AI Usages\n· OpenCode Go 월간: \(Int(ocMonthly))% [구독 결제: \(oc.billingDateString) (D-\(oc.daysUntilBilling))]\n· Google AI Pro 월간: \(Int(gMonthly))% [구독 결제: \(g.billingDateString) (D-\(g.daysUntilBilling))]\n클릭하여 상세 보기"
     }
     
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {

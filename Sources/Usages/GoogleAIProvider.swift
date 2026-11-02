@@ -11,7 +11,7 @@ public final class GoogleAIProvider {
         let (_, email) = getStoredTokenAndEmail()
         let localStats = await getTodayLocalStats()
         
-        let daysUntilReset = getDaysUntilMonthEnd()
+        let (billingDateStr, daysUntilBilling) = AppSettings.calculateNextBilling(dayOfMonth: AppSettings.shared.googleBillingDay)
         
         // 1. 자사 모델 (Gemini Flash 등) - 기준 한도: 1,500 요청
         let fpLimit = 1500
@@ -42,8 +42,8 @@ public final class GoogleAIProvider {
             thirdPartyUsed: tpUsed,
             thirdPartyLimit: tpLimit,
             monthlyPercent: monthlyPercent,
-            daysUntilReset: daysUntilReset,
-            resetTimeString: "D-\(daysUntilReset)일 후 월간 리셋"
+            nextBillingDateString: billingDateStr,
+            daysUntilBilling: daysUntilBilling
         )
         
         let status: GaugeStatus = monthlyPercent >= 90.0 ? .critical : (monthlyPercent >= 75.0 ? .warning : .normal)
@@ -52,12 +52,12 @@ public final class GoogleAIProvider {
         return ServiceUsageSnapshot(
             service: .googleAI,
             planName: planTitle,
-            usedPercent: monthlyPercent, // 메인 아이콘 표시용 월간
+            usedPercent: monthlyPercent,
             currentUsed: Double(fpUsed + argonUsed + tpUsed),
             maxLimit: Double(fpLimit + argonLimit + tpLimit),
             unit: "요청",
-            resetTimeString: "월간 갱신 D-\(daysUntilReset)",
-            daysUntilReset: daysUntilReset,
+            billingDateString: billingDateStr,
+            daysUntilBilling: daysUntilBilling,
             status: status,
             statusMessage: "월간 \(Int(monthlyPercent))% 소모",
             lastUpdated: Date(),

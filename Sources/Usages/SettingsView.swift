@@ -1,11 +1,15 @@
 import SwiftUI
 
 public final class SettingsViewModel: ObservableObject {
+    @Published public var openCodeBillingDay: Int
+    @Published public var googleBillingDay: Int
     @Published public var openCodeKeyInput: String
     @Published public var googleKeyInput: String
     @Published public var saveStatusMessage: String = ""
     
     public init() {
+        self.openCodeBillingDay = AppSettings.shared.openCodeBillingDay
+        self.googleBillingDay = AppSettings.shared.googleBillingDay
         self.openCodeKeyInput = AppSettings.shared.openCodeApiKey
         self.googleKeyInput = AppSettings.shared.googleApiKey
     }
@@ -21,7 +25,7 @@ public struct SettingsView: View {
     }
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             // Title
             HStack {
                 Image(systemName: "slider.horizontal.3")
@@ -34,7 +38,41 @@ public struct SettingsView: View {
             
             Divider()
             
-            // Section 1: 갱신 주기
+            // Section 1: 구독료 결제일 / 만료일 설정 (매월 결제 일자)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("구독료 결제일 (만료/갱신일) 설정")
+                    .font(.system(size: 12, weight: .bold))
+                
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("OpenCode Go 결제일:")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(.secondary)
+                        Picker("", selection: $viewModel.openCodeBillingDay) {
+                            ForEach(1...31, id: \.self) { day in
+                                Text("매월 \(day)일").tag(day)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Google AI Pro 결제일:")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(.secondary)
+                        Picker("", selection: $viewModel.googleBillingDay) {
+                            ForEach(1...31, id: \.self) { day in
+                                Text("매월 \(day)일").tag(day)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+            }
+            
+            Divider()
+            
+            // Section 2: 자동 새로고침 주기
             VStack(alignment: .leading, spacing: 6) {
                 Text("자동 새로고침 주기")
                     .font(.system(size: 12, weight: .bold))
@@ -50,23 +88,23 @@ public struct SettingsView: View {
             
             Divider()
             
-            // Section 2: API 인증 (선택 사항)
-            VStack(alignment: .leading, spacing: 10) {
+            // Section 3: API 인증 (선택 사항)
+            VStack(alignment: .leading, spacing: 8) {
                 Text("서비스 인증 설정 (선택)")
                     .font(.system(size: 12, weight: .bold))
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("OpenCode Go API Key (미입력 시 로컬 DB/CLI 자동 감지):")
-                        .font(.system(size: 10.5))
+                        .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     SecureField("sk-...", text: $viewModel.openCodeKeyInput)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 11))
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("Google AI Studio API Key (미입력 시 Antigravity Keyring 자동 감지):")
-                        .font(.system(size: 10.5))
+                        .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     SecureField("AIza...", text: $viewModel.googleKeyInput)
                         .textFieldStyle(.roundedBorder)
@@ -86,6 +124,8 @@ public struct SettingsView: View {
                 Spacer()
                 
                 Button("저장 및 즉시 갱신") {
+                    settings.openCodeBillingDay = viewModel.openCodeBillingDay
+                    settings.googleBillingDay = viewModel.googleBillingDay
                     settings.openCodeApiKey = viewModel.openCodeKeyInput
                     settings.googleApiKey = viewModel.googleKeyInput
                     viewModel.saveStatusMessage = "설정이 저장되었습니다."
@@ -102,6 +142,6 @@ public struct SettingsView: View {
             }
         }
         .padding(18)
-        .frame(width: 420, height: 320)
+        .frame(width: 440, height: 390)
     }
 }

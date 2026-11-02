@@ -64,7 +64,8 @@ public struct OpenCodeWindows {
     public var weeklyResetString: String = ""
     public var monthlyPercent: Double = 0.0     // 월간 쿼터
     public var monthlyResetString: String = ""
-    public var daysUntilReset: Int = 0          // 갱신일까지 남은 일수
+    public var nextBillingDateString: String = "" // 구독료 결제일
+    public var daysUntilBilling: Int = 0          // 결제일까지 남은 일수
     
     public init(
         rollingPercent: Double = 0.0,
@@ -73,7 +74,8 @@ public struct OpenCodeWindows {
         weeklyResetString: String = "",
         monthlyPercent: Double = 0.0,
         monthlyResetString: String = "",
-        daysUntilReset: Int = 0
+        nextBillingDateString: String = "",
+        daysUntilBilling: Int = 0
     ) {
         self.rollingPercent = rollingPercent
         self.rollingResetString = rollingResetString
@@ -81,7 +83,8 @@ public struct OpenCodeWindows {
         self.weeklyResetString = weeklyResetString
         self.monthlyPercent = monthlyPercent
         self.monthlyResetString = monthlyResetString
-        self.daysUntilReset = daysUntilReset
+        self.nextBillingDateString = nextBillingDateString
+        self.daysUntilBilling = daysUntilBilling
     }
 }
 
@@ -100,8 +103,8 @@ public struct GoogleAICategories {
     public var thirdPartyLimit: Int = 200
     
     public var monthlyPercent: Double = 0.0       // 월간 종합 사용률
-    public var daysUntilReset: Int = 0            // 갱신일까지 남은 일수
-    public var resetTimeString: String = ""
+    public var nextBillingDateString: String = "" // 구독료 결제일
+    public var daysUntilBilling: Int = 0          // 결제일까지 남은 일수
     
     public init(
         firstPartyPercent: Double = 0.0,
@@ -114,8 +117,8 @@ public struct GoogleAICategories {
         thirdPartyUsed: Int = 0,
         thirdPartyLimit: Int = 200,
         monthlyPercent: Double = 0.0,
-        daysUntilReset: Int = 0,
-        resetTimeString: String = ""
+        nextBillingDateString: String = "",
+        daysUntilBilling: Int = 0
     ) {
         self.firstPartyPercent = firstPartyPercent
         self.firstPartyUsed = firstPartyUsed
@@ -127,8 +130,8 @@ public struct GoogleAICategories {
         self.thirdPartyUsed = thirdPartyUsed
         self.thirdPartyLimit = thirdPartyLimit
         self.monthlyPercent = monthlyPercent
-        self.daysUntilReset = daysUntilReset
-        self.resetTimeString = resetTimeString
+        self.nextBillingDateString = nextBillingDateString
+        self.daysUntilBilling = daysUntilBilling
     }
 }
 
@@ -142,8 +145,8 @@ public struct ServiceUsageSnapshot {
     public var currentUsed: Double
     public var maxLimit: Double
     public var unit: String
-    public var resetTimeString: String
-    public var daysUntilReset: Int       // 갱신일까지 남은 일수
+    public var billingDateString: String // 다음 구독 결제일
+    public var daysUntilBilling: Int     // 구독 결제일까지 남은 일수
     public var status: GaugeStatus
     public var statusMessage: String
     public var lastUpdated: Date
@@ -169,8 +172,8 @@ public struct ServiceUsageSnapshot {
         currentUsed: Double = 0.0,
         maxLimit: Double = 100.0,
         unit: String = "%",
-        resetTimeString: String = "",
-        daysUntilReset: Int = 0,
+        billingDateString: String = "",
+        daysUntilBilling: Int = 0,
         status: GaugeStatus = .normal,
         statusMessage: String = "",
         lastUpdated: Date = Date(),
@@ -191,8 +194,8 @@ public struct ServiceUsageSnapshot {
         self.currentUsed = currentUsed
         self.maxLimit = maxLimit
         self.unit = unit
-        self.resetTimeString = resetTimeString
-        self.daysUntilReset = daysUntilReset
+        self.billingDateString = billingDateString
+        self.daysUntilBilling = daysUntilBilling
         self.status = status
         self.statusMessage = statusMessage
         self.lastUpdated = lastUpdated
@@ -217,6 +220,14 @@ public final class AppSettings: ObservableObject {
         didSet { defaults.set(refreshIntervalSeconds, forKey: "refreshIntervalSeconds") }
     }
     
+    @Published public var openCodeBillingDay: Int {
+        didSet { defaults.set(openCodeBillingDay, forKey: "openCodeBillingDay") }
+    }
+    
+    @Published public var googleBillingDay: Int {
+        didSet { defaults.set(googleBillingDay, forKey: "googleBillingDay") }
+    }
+    
     @Published public var googleApiKey: String {
         didSet { defaults.set(googleApiKey, forKey: "googleApiKey") }
     }
@@ -227,7 +238,47 @@ public final class AppSettings: ObservableObject {
     
     private init() {
         self.refreshIntervalSeconds = defaults.double(forKey: "refreshIntervalSeconds") > 0 ? defaults.double(forKey: "refreshIntervalSeconds") : 30.0
+        // 기본 결제일: OpenCode Go는 가입일 기준(예: 24일), Google은 월중(예: 15일)
+        self.openCodeBillingDay = defaults.integer(forKey: "openCodeBillingDay") > 0 ? defaults.integer(forKey: "openCodeBillingDay") : 24
+        self.googleBillingDay = defaults.integer(forKey: "googleBillingDay") > 0 ? defaults.integer(forKey: "googleBillingDay") : 15
         self.googleApiKey = defaults.string(forKey: "googleApiKey") ?? ""
         self.openCodeApiKey = defaults.string(forKey: "openCodeApiKey") ?? ""
+    }
+    
+    /// 특정 일자(1~31)를 기준으로 다음 결제일 Date 및 남은 D-day 계산
+    public static func calculateNextBilling(dayOfMonth: Int) -> (dateStr: String, daysRemaining: Int) {
+        let calendar = Calendar.current
+        let now = Date()
+        let currentYear = calendar.component(.year, from: now)
+        let currentMonth = calendar.component(.month, from: now)
+        let currentDay = calendar.component(.day, from: now)
+        
+        var targetYear = currentYear
+        var targetMonth = currentMonth
+        
+        if currentDay >= dayOfMonth {
+            // 이번 달 결제일이 이미 지났거나 오늘이면 -> 다음 달
+            targetMonth += 1
+            if targetMonth > 12 {
+                targetMonth = 1
+                targetYear += 1
+            }
+        }
+        
+        var comp = DateComponents()
+        comp.year = targetYear
+        comp.month = targetMonth
+        comp.day = dayOfMonth
+        comp.hour = 0
+        comp.minute = 0
+        comp.second = 0
+        
+        let targetDate = calendar.date(from: comp) ?? now.addingTimeInterval(86400 * 15)
+        let diff = Int(targetDate.timeIntervalSince(now))
+        let days = max(0, Int(ceil(Double(diff) / 86400.0)))
+        
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        return (fmt.string(from: targetDate), days)
     }
 }
