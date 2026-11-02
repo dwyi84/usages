@@ -80,19 +80,55 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             case "opencode":
                 let oc = usageManager.openCodeSnapshot
                 guard oc.isAvailable else { continue }
-                gaugeItems.append(.init(percent: oc.remainingPercent, status: oc.status))
-                tooltips.append("· OpenCode Go: \(Int(oc.remainingPercent))% \(L10n.remaining) (\(oc.openCodeWindows.monthlyResetString))")
+                let metric = settings.metricDisplay(for: "opencode")
+                let pct: Double
+                let label: String
+                let resetStr: String
+                switch metric {
+                case .fiveHour:
+                    pct = oc.openCodeWindows.fiveHourRemainingPercent
+                    label = L10n.isKorean ? "5시간" : "5h"
+                    resetStr = oc.openCodeWindows.fiveHourResetString
+                case .weekly:
+                    pct = oc.openCodeWindows.weeklyRemainingPercent
+                    label = L10n.isKorean ? "주간" : "Weekly"
+                    resetStr = oc.openCodeWindows.weeklyResetString
+                case .monthly:
+                    pct = oc.openCodeWindows.monthlyRemainingPercent
+                    label = L10n.isKorean ? "월간" : "Monthly"
+                    resetStr = oc.openCodeWindows.monthlyResetString
+                }
+                let status: GaugeStatus = pct <= 15 ? .critical : (pct <= 35 ? .warning : .normal)
+                gaugeItems.append(.init(percent: pct, status: status))
+                tooltips.append("· OpenCode Go (\(label)): \(Int(pct))% \(L10n.remaining) (\(resetStr))")
                 nearestBillingDays = min(nearestBillingDays, oc.daysUntilBilling)
             case "google_ai":
                 let g = usageManager.googleAISnapshot
                 guard g.isAvailable else { continue }
-                gaugeItems.append(.init(percent: g.remainingPercent, status: g.status))
-                if !g.googleGroups.nextBillingDateString.isEmpty {
-                    tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining) (\(g.googleGroups.nextBillingDateString))")
-                    nearestBillingDays = min(nearestBillingDays, g.daysUntilBilling)
-                } else {
-                    tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining)")
+                let metric = settings.metricDisplay(for: "google_ai")
+                let pct: Double
+                let label: String
+                let resetStr: String
+                switch metric {
+                case .fiveHour:
+                    let gem5 = g.googleGroups.geminiFiveHourRemainingPercent
+                    let c5 = g.googleGroups.claudeFiveHourRemainingPercent
+                    pct = c5 > 0 ? min(gem5, c5) : gem5
+                    label = L10n.isKorean ? "5시간" : "5h"
+                    resetStr = g.googleGroups.geminiFiveHourResetString
+                case .weekly:
+                    pct = g.googleGroups.geminiWeeklyRemainingPercent
+                    label = L10n.isKorean ? "주간" : "Weekly"
+                    resetStr = g.googleGroups.geminiWeeklyResetString
+                case .monthly:
+                    pct = g.remainingPercent
+                    label = L10n.isKorean ? "월간" : "Monthly"
+                    resetStr = g.googleGroups.nextBillingDateString.isEmpty ? "-" : g.googleGroups.nextBillingDateString
                 }
+                let status: GaugeStatus = pct <= 15 ? .critical : (pct <= 35 ? .warning : .normal)
+                gaugeItems.append(.init(percent: pct, status: status))
+                tooltips.append("· Google AI Pro (\(label)): \(Int(pct))% \(L10n.remaining) (\(resetStr))")
+                nearestBillingDays = min(nearestBillingDays, g.daysUntilBilling)
             case "openrouter":
                 let or = usageManager.openRouterSnapshot
                 guard or.isConnected else { continue }

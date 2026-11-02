@@ -13,21 +13,21 @@ public struct DetailPopoverView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Header
-            HStack(spacing: 8) {
+            // MARK: - Header (초소형 슬림 디자인으로 세로 공간 최소화)
+            HStack(spacing: 6) {
                 Text(L10n.appTitle)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 11.5, weight: .bold))
                 
                 Text("v\(UpdaterViewModel.currentVersion) · \(formatTime(usageManager.lastRefreshedAt))")
-                    .font(.system(size: 9.5))
+                    .font(.system(size: 8.5))
                     .foregroundColor(.secondary)
                 
                 Spacer()
                 
-                // 체크 주기 (가장 위쪽 헤더로 이동)
-                HStack(spacing: 3) {
+                // 체크 주기 (슬림 세그먼트)
+                HStack(spacing: 2) {
                     Text(L10n.checkInterval)
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 8.5, weight: .medium))
                         .foregroundColor(.secondary)
                     
                     Picker("", selection: $settings.refreshIntervalSeconds) {
@@ -38,46 +38,40 @@ public struct DetailPopoverView: View {
                     }
                     .pickerStyle(.segmented)
                     .controlSize(.mini)
-                    .frame(width: 140)
+                    .frame(width: 116)
                     .onChange(of: settings.refreshIntervalSeconds) { _ in
                         usageManager.startTimer()
                     }
                 }
                 
-                // CopyNinja style Header Update Check Button
-                Button(action: {
-                    updater.checkForUpdatesPresentingAlert()
-                }) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 8.5))
-                        Text(L10n.checkForUpdates)
-                            .font(.system(size: 9))
-                    }
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2.5)
-                    .background(Color(NSColor.separatorColor).opacity(0.12))
-                    .cornerRadius(4)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.checkForUpdates)
-                
                 if updater.updateState == .updateAvailable, let newVer = updater.pendingUpdateVersion {
                     Button(action: {
                         updater.presentUpdateConfirmation()
                     }) {
-                        HStack(spacing: 4) {
-                            Circle().fill(Color.orange).frame(width: 6, height: 6)
+                        HStack(spacing: 3) {
+                            Circle().fill(Color.orange).frame(width: 5, height: 5)
                             Text("v\(newVer) \(L10n.updateAvailable)")
-                                .font(.system(size: 9, weight: .semibold))
+                                .font(.system(size: 8.5, weight: .semibold))
                         }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2.5)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
                         .background(Color.orange.opacity(0.15))
-                        .cornerRadius(4)
+                        .cornerRadius(3)
                     }
                     .buttonStyle(.plain)
+                } else {
+                    Button(action: {
+                        updater.checkForUpdatesPresentingAlert()
+                    }) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                            .padding(3)
+                            .background(Color(NSColor.separatorColor).opacity(0.12))
+                            .cornerRadius(3)
+                    }
+                    .buttonStyle(.plain)
+                    .help(L10n.checkForUpdates)
                 }
                 
                 Button(action: {
@@ -86,16 +80,19 @@ public struct DetailPopoverView: View {
                     }
                 }) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundColor(.secondary)
                         .rotationEffect(.degrees(usageManager.isRefreshing ? 360 : 0))
                         .animation(usageManager.isRefreshing ? Animation.linear(duration: 1.0).repeatForever(autoreverses: false) : .default, value: usageManager.isRefreshing)
+                        .padding(3)
+                        .background(Color(NSColor.separatorColor).opacity(0.12))
+                        .cornerRadius(3)
                 }
                 .buttonStyle(.plain)
                 .help(L10n.refreshTooltip)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 5)
             
             Divider()
             
@@ -319,8 +316,28 @@ struct OpenCodeSectionView: View {
                 
                 Spacer()
                 
+                // 아이콘 게이지 선택기 (5시간 / 주간 / 월간)
+                HStack(spacing: 2) {
+                    Image(systemName: "menubar.arrow.up.rectangle")
+                        .font(.system(size: 7.5))
+                        .foregroundColor(.secondary)
+                    
+                    Picker("", selection: Binding(
+                        get: { settings.metricDisplay(for: "opencode") },
+                        set: { settings.setMetricDisplay(for: "opencode", metric: $0) }
+                    )) {
+                        Text(L10n.isKorean ? "5시간" : "5h").tag(QuotaMetricDisplay.fiveHour)
+                        Text(L10n.isKorean ? "주간" : "Weekly").tag(QuotaMetricDisplay.weekly)
+                        Text(L10n.isKorean ? "월간" : "Monthly").tag(QuotaMetricDisplay.monthly)
+                    }
+                    .pickerStyle(.segmented)
+                    .controlSize(.mini)
+                    .frame(width: 120)
+                    .help(L10n.isKorean ? "메뉴바 아이콘에 표시할 기준을 선택합니다" : "Select which metric appears on the menu bar icon")
+                }
+                
                 Text("• \(windows.monthlyResetString)")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 9.5, weight: .semibold))
                     .foregroundColor(.blue)
             }
             
@@ -332,19 +349,22 @@ struct OpenCodeSectionView: View {
                         CleanProgressBar(
                             title: L10n.fiveHourWindow,
                             percent: windows.fiveHourRemainingPercent,
-                            resetInfo: windows.fiveHourResetString
+                            resetInfo: windows.fiveHourResetString,
+                            isSelectedForIcon: settings.metricDisplay(for: "opencode") == .fiveHour
                         )
                         
                         CleanProgressBar(
                             title: L10n.weekly,
                             percent: windows.weeklyRemainingPercent,
-                            resetInfo: windows.weeklyResetString
+                            resetInfo: windows.weeklyResetString,
+                            isSelectedForIcon: settings.metricDisplay(for: "opencode") == .weekly
                         )
                         
                         CleanProgressBar(
                             title: L10n.monthly,
                             percent: windows.monthlyRemainingPercent,
-                            resetInfo: windows.monthlyResetString
+                            resetInfo: windows.monthlyResetString,
+                            isSelectedForIcon: settings.metricDisplay(for: "opencode") == .monthly
                         )
                     }
                     .padding(8)
@@ -414,9 +434,29 @@ struct GoogleAISectionView: View {
                 
                 Spacer()
                 
+                // 아이콘 게이지 선택기 (5시간 / 주간 / 월간)
+                HStack(spacing: 2) {
+                    Image(systemName: "menubar.arrow.up.rectangle")
+                        .font(.system(size: 7.5))
+                        .foregroundColor(.secondary)
+                    
+                    Picker("", selection: Binding(
+                        get: { settings.metricDisplay(for: "google_ai") },
+                        set: { settings.setMetricDisplay(for: "google_ai", metric: $0) }
+                    )) {
+                        Text(L10n.isKorean ? "5시간" : "5h").tag(QuotaMetricDisplay.fiveHour)
+                        Text(L10n.isKorean ? "주간" : "Weekly").tag(QuotaMetricDisplay.weekly)
+                        Text(L10n.isKorean ? "월간" : "Monthly").tag(QuotaMetricDisplay.monthly)
+                    }
+                    .pickerStyle(.segmented)
+                    .controlSize(.mini)
+                    .frame(width: 120)
+                    .help(L10n.isKorean ? "메뉴바 아이콘에 표시할 기준을 선택합니다" : "Select which metric appears on the menu bar icon")
+                }
+                
                 if settings.googleBillingDayOfMonth > 0 && !groups.nextBillingDateString.isEmpty {
                     Text("• \(groups.nextBillingDateString)")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 9.5, weight: .semibold))
                         .foregroundColor(.purple)
                 }
             }
@@ -480,12 +520,19 @@ struct GoogleAISectionView: View {
                             Text(L10n.fiveHourWindow)
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(.secondary)
+                            if settings.metricDisplay(for: "google_ai") == .fiveHour {
+                                Image(systemName: "menubar.arrow.up.rectangle")
+                                    .font(.system(size: 7.5))
+                                    .foregroundColor(.accentColor)
+                                    .help(L10n.isKorean ? "상단 메뉴바 아이콘으로 표시 중" : "Shown on menu bar icon")
+                            }
                             Spacer()
                         }
                         CleanProgressBar(
                             title: L10n.geminiModels,
                             percent: groups.geminiFiveHourRemainingPercent,
-                            resetInfo: groups.geminiFiveHourResetString
+                            resetInfo: groups.geminiFiveHourResetString,
+                            isSelectedForIcon: settings.metricDisplay(for: "google_ai") == .fiveHour
                         )
                         CleanProgressBar(
                             title: L10n.claudeAndGpt,
@@ -500,12 +547,19 @@ struct GoogleAISectionView: View {
                             Text(L10n.weekly)
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(.secondary)
+                            if settings.metricDisplay(for: "google_ai") == .weekly {
+                                Image(systemName: "menubar.arrow.up.rectangle")
+                                    .font(.system(size: 7.5))
+                                    .foregroundColor(.accentColor)
+                                    .help(L10n.isKorean ? "상단 메뉴바 아이콘으로 표시 중" : "Shown on menu bar icon")
+                            }
                             Spacer()
                         }
                         CleanProgressBar(
                             title: L10n.geminiModels,
                             percent: groups.geminiWeeklyRemainingPercent,
-                            resetInfo: groups.geminiWeeklyResetString
+                            resetInfo: groups.geminiWeeklyResetString,
+                            isSelectedForIcon: settings.metricDisplay(for: "google_ai") == .weekly
                         )
                         CleanProgressBar(
                             title: L10n.claudeAndGpt,
@@ -525,6 +579,12 @@ struct GoogleAISectionView: View {
                             Text(L10n.monthly)
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(.secondary)
+                            if settings.metricDisplay(for: "google_ai") == .monthly {
+                                Image(systemName: "menubar.arrow.up.rectangle")
+                                    .font(.system(size: 7.5))
+                                    .foregroundColor(.accentColor)
+                                    .help(L10n.isKorean ? "상단 메뉴바 아이콘으로 표시 중" : "Shown on menu bar icon")
+                            }
                             Spacer()
                             if settings.googleBillingDayOfMonth > 0 && !groups.nextBillingDateString.isEmpty {
                                 Button(action: {
@@ -1194,6 +1254,7 @@ struct CleanProgressBar: View {
     let title: String
     let percent: Double
     let resetInfo: String
+    var isSelectedForIcon: Bool = false
     
     var color: Color {
         if percent <= 15.0 { return .red }
@@ -1211,8 +1272,16 @@ struct CleanProgressBar: View {
     var body: some View {
         VStack(spacing: 2) {
             HStack {
-                Text(title)
-                    .font(.system(size: 9.5, weight: .medium))
+                HStack(spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 9.5, weight: isSelectedForIcon ? .bold : .medium))
+                    if isSelectedForIcon {
+                        Image(systemName: "menubar.arrow.up.rectangle")
+                            .font(.system(size: 7.5))
+                            .foregroundColor(.accentColor)
+                            .help(L10n.isKorean ? "상단 메뉴바 아이콘으로 표시 중" : "Shown on menu bar icon")
+                    }
+                }
                 Spacer()
                 Text(formattedPercent)
                     .font(.system(size: 9.5, weight: .bold))

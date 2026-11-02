@@ -66,6 +66,20 @@ public enum ServiceType: String, Codable, CaseIterable {
     case deepseek = "DeepSeek"
 }
 
+public enum QuotaMetricDisplay: String, Codable, CaseIterable {
+    case fiveHour = "5h"
+    case weekly = "weekly"
+    case monthly = "monthly"
+    
+    public var displayName: String {
+        switch self {
+        case .fiveHour: return L10n.isKorean ? "5시간" : "5h"
+        case .weekly: return L10n.isKorean ? "주간" : "Weekly"
+        case .monthly: return L10n.isKorean ? "월간" : "Monthly"
+        }
+    }
+}
+
 public struct ProviderDetector {
     public static func isDetected(id: String) -> Bool {
         switch id {
@@ -482,6 +496,26 @@ public final class AppSettings: ObservableObject {
         didSet { defaults.set(googleBillingDayOfMonth, forKey: "googleBillingDayOfMonth") }
     }
     
+    // 각 카드에서 메뉴바 아이콘으로 표시할 쿼터 기준 (5시간, 주간, 월간)
+    @Published public var providerMetricDisplay: [String: String] {
+        didSet { defaults.set(providerMetricDisplay, forKey: "providerMetricDisplay") }
+    }
+    
+    public func metricDisplay(for providerId: String) -> QuotaMetricDisplay {
+        if let raw = providerMetricDisplay[providerId], let val = QuotaMetricDisplay(rawValue: raw) {
+            return val
+        }
+        return providerId == "opencode" ? .monthly : .fiveHour
+    }
+    
+    public func setMetricDisplay(for providerId: String, metric: QuotaMetricDisplay) {
+        providerMetricDisplay[providerId] = metric.rawValue
+        objectWillChange.send()
+        DispatchQueue.main.async {
+            UsageManager.shared.onSnapshotUpdated?()
+        }
+    }
+    
     public static let defaultPopularityOrder = [
         "codex",
         "claude",
@@ -562,6 +596,7 @@ public final class AppSettings: ObservableObject {
         }
         
         self.googleBillingDayOfMonth = defaults.integer(forKey: "googleBillingDayOfMonth")
+        self.providerMetricDisplay = defaults.dictionary(forKey: "providerMetricDisplay") as? [String: String] ?? [:]
     }
     
     public func moveProviderUp(id: String) {
