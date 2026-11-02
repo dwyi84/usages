@@ -113,16 +113,21 @@ public final class GoogleAIProvider: @unchecked Sendable {
             return ("", 0)
         }
         
-        let startOfToday = calendar.startOfDay(for: now)
-        let startOfBilling = calendar.startOfDay(for: billingDate)
-        let days = calendar.dateComponents([.day], from: startOfToday, to: startOfBilling).day ?? 0
+        let diff = max(0, Int(billingDate.timeIntervalSince(now)))
+        let totalHours = diff / 3600
+        let days = totalHours / 24
+        let hours = totalHours % 24
         
         let isKorean = L10n.isKorean
         let dateStr: String
         if days == 0 {
-            dateStr = isKorean ? "D-Day (오늘 리셋)" : "Resets today"
+            if hours == 0 {
+                dateStr = isKorean ? "오늘 리셋 (매월 \(dayOfMonth)일)" : "Resets today (\(dayOfMonth)th)"
+            } else {
+                dateStr = isKorean ? "\(hours)시간 후 리셋 (매월 \(dayOfMonth)일)" : "Resets in \(hours)h (\(dayOfMonth)th)"
+            }
         } else {
-            dateStr = isKorean ? "D-\(days)일 후 리셋 (매월 \(dayOfMonth)일)" : "Resets in \(days)d (\(dayOfMonth)th)"
+            dateStr = isKorean ? "\(days)일 \(hours)시간 후 리셋 (매월 \(dayOfMonth)일)" : "Resets in \(days)d \(hours)h (\(dayOfMonth)th)"
         }
         return (dateStr, days)
     }
