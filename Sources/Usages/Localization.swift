@@ -72,8 +72,8 @@ public struct L10n {
     public static var reset: String { isKorean ? "초기화" : "Reset" }
     public static var dayUnit: String { isKorean ? "일" : "th" }
     
-    // Footer & Settings
-    public static var autoRefresh: String { isKorean ? "자동 리셋:" : "Auto Refresh:" }
+    // Header & Settings
+    public static var checkInterval: String { isKorean ? "체크 주기:" : "Check:" }
     public static var min1: String { isKorean ? "1분" : "1m" }
     public static var min3: String { isKorean ? "3분" : "3m" }
     public static var min5: String { isKorean ? "5분" : "5m" }

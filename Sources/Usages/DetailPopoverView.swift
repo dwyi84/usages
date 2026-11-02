@@ -24,6 +24,26 @@ public struct DetailPopoverView: View {
                 
                 Spacer()
                 
+                // 체크 주기 (가장 위쪽 헤더로 이동)
+                HStack(spacing: 3) {
+                    Text(L10n.checkInterval)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    Picker("", selection: $settings.refreshIntervalSeconds) {
+                        Text(L10n.min1).tag(60.0)
+                        Text(L10n.min3).tag(180.0)
+                        Text(L10n.min5).tag(300.0)
+                        Text(L10n.min15).tag(900.0)
+                    }
+                    .pickerStyle(.segmented)
+                    .controlSize(.mini)
+                    .frame(width: 140)
+                    .onChange(of: settings.refreshIntervalSeconds) { _ in
+                        usageManager.startTimer()
+                    }
+                }
+                
                 // CopyNinja style Header Update Check Button
                 Button(action: {
                     updater.checkForUpdatesPresentingAlert()
@@ -118,60 +138,37 @@ public struct DetailPopoverView: View {
             
             Divider()
             
-            // MARK: - Footer
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    Text(L10n.autoRefresh)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
-                    
-                    Picker("", selection: $settings.refreshIntervalSeconds) {
-                        Text(L10n.min1).tag(60.0)
-                        Text(L10n.min3).tag(180.0)
-                        Text(L10n.min5).tag(300.0)
-                        Text(L10n.min15).tag(900.0)
-                    }
-                    .pickerStyle(.segmented)
-                    .controlSize(.mini)
-                    .frame(width: 170)
-                    .onChange(of: settings.refreshIntervalSeconds) { _ in
-                        usageManager.startTimer()
-                    }
-                    
-                    Spacer()
-                    
-                    // Buy Me a Coffee Button
-                    Link(destination: coffeeURL) {
-                        HStack(spacing: 4) {
-                            Text("☕")
-                                .font(.system(size: 10))
-                            Text(L10n.buyMeACoffee)
-                                .font(.system(size: 9.5, weight: .semibold))
-                        }
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(Color(red: 1.0, green: 0.87, blue: 0.0))
-                        .foregroundColor(.black)
-                        .cornerRadius(5)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button(L10n.quit) {
-                        NSApplication.shared.terminate(nil)
-                    }
+            // MARK: - Footer (로그인 시 자동 시작을 단일 행으로 간결화)
+            HStack(spacing: 8) {
+                Toggle(L10n.launchAtLogin, isOn: $launchAtLogin.isEnabled)
+                    .toggleStyle(.checkbox)
                     .font(.system(size: 10))
-                    .buttonStyle(.borderless)
                     .foregroundColor(.secondary)
-                }
                 
-                HStack {
-                    Toggle(L10n.launchAtLogin, isOn: $launchAtLogin.isEnabled)
-                        .toggleStyle(.checkbox)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    
-                    Spacer()
+                Spacer()
+                
+                // Buy Me a Coffee Button
+                Link(destination: coffeeURL) {
+                    HStack(spacing: 4) {
+                        Text("☕")
+                            .font(.system(size: 10))
+                        Text(L10n.buyMeACoffee)
+                            .font(.system(size: 9.5, weight: .semibold))
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3.5)
+                    .background(Color(red: 1.0, green: 0.87, blue: 0.0))
+                    .foregroundColor(.black)
+                    .cornerRadius(5)
                 }
+                .buttonStyle(.plain)
+                
+                Button(L10n.quit) {
+                    NSApplication.shared.terminate(nil)
+                }
+                .font(.system(size: 10))
+                .buttonStyle(.borderless)
+                .foregroundColor(.secondary)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -301,15 +298,9 @@ struct OpenCodeSectionView: View {
                 
                 Spacer()
                 
-                HStack(spacing: 4) {
-                    Text("• \(windows.monthlyResetString)")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.blue)
-                    Text("(\(L10n.isKorean ? "API 자동" : "API Auto"))")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
-                }
-                .help(L10n.autoSyncedTooltip)
+                Text("• \(windows.monthlyResetString)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.blue)
             }
             
             // 2-Column Split: Left Quotas / Right Trend & Cost
