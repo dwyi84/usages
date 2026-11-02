@@ -24,6 +24,25 @@ public struct DetailPopoverView: View {
                 
                 Spacer()
                 
+                // CopyNinja style Header Update Check Button
+                Button(action: {
+                    updater.checkForUpdatesPresentingAlert()
+                }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 8.5))
+                        Text(L10n.checkForUpdates)
+                            .font(.system(size: 9))
+                    }
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2.5)
+                    .background(Color(NSColor.separatorColor).opacity(0.12))
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+                .help(L10n.checkForUpdates)
+                
                 if updater.updateState == .updateAvailable, let newVer = updater.pendingUpdateVersion {
                     Button(action: {
                         updater.presentUpdateConfirmation()
@@ -34,7 +53,7 @@ public struct DetailPopoverView: View {
                                 .font(.system(size: 9, weight: .semibold))
                         }
                         .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.vertical, 2.5)
                         .background(Color.orange.opacity(0.15))
                         .cornerRadius(4)
                     }
@@ -152,15 +171,6 @@ public struct DetailPopoverView: View {
                         .foregroundColor(.secondary)
                     
                     Spacer()
-                    
-                    Button(action: {
-                        updater.checkForUpdatesPresentingAlert()
-                    }) {
-                        Text(L10n.checkForUpdates)
-                            .font(.system(size: 9.5))
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.borderless)
                 }
             }
             .padding(.horizontal, 16)
@@ -169,8 +179,10 @@ public struct DetailPopoverView: View {
         }
         .frame(width: 520)
         .background(Color(NSColor.windowBackgroundColor))
-        .onAppear {
-            uiState.openRouterKeyInput = settings.openRouterApiKey
+        .popover(isPresented: $uiState.showDetailedTrendPopover, arrowEdge: .leading) {
+            if let summary = uiState.selectedTrendSummary {
+                DetailedTrendPopoverView(title: uiState.selectedTrendTitle, summary: summary)
+            }
         }
     }
     
@@ -328,7 +340,7 @@ struct OpenCodeSectionView: View {
                 .frame(maxWidth: .infinity)
                 
                 // Right: 토큰 트렌드 & 코스트 환산
-                ProviderTrendView(trend: snapshot.trendSummary)
+                ProviderTrendView(title: L10n.openCodeTitle, trend: snapshot.trendSummary)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -523,7 +535,7 @@ struct GoogleAISectionView: View {
                 .frame(maxWidth: .infinity)
                 
                 // Right: 토큰 트렌드 & 코스트 환산
-                ProviderTrendView(trend: snapshot.trendSummary)
+                ProviderTrendView(title: L10n.googleAITitle, trend: snapshot.trendSummary)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -606,12 +618,31 @@ struct OpenRouterSectionView: View {
                     
                     Divider()
                     
-                    // Key status or Inline Edit field
-                    if uiState.isEditingOpenRouterKey || !snapshot.isConnected {
+                    // Key status or Inline Edit field (보안 강화: 저장 후 키 노출 절대 불가, 수정 시 빈 입력창으로 대체)
+                    if uiState.isEditingOpenRouterKey || !settings.hasOpenRouterKey {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(L10n.enterOpenRouterKey)
-                                .font(.system(size: 8.5))
-                                .foregroundColor(.secondary)
+                            HStack {
+                                Text(L10n.enterOpenRouterKey)
+                                    .font(.system(size: 8.5))
+                                    .foregroundColor(.secondary)
+                                
+                                Spacer()
+                                
+                                if settings.hasOpenRouterKey {
+                                    Button(L10n.deleteKey) {
+                                        settings.deleteOpenRouterKey()
+                                        uiState.openRouterKeyInput = ""
+                                        uiState.isEditingOpenRouterKey = false
+                                        usageManager.reloadProviders()
+                                        Task {
+                                            await usageManager.refreshAll()
+                                        }
+                                    }
+                                    .font(.system(size: 8.5))
+                                    .foregroundColor(.red.opacity(0.85))
+                                    .buttonStyle(.plain)
+                                }
+                            }
                             
                             HStack(spacing: 4) {
                                 TextField("sk-or-...", text: $uiState.openRouterKeyInput)
@@ -620,8 +651,11 @@ struct OpenRouterSectionView: View {
                                 
                                 Button(L10n.save) {
                                     let cleaned = uiState.openRouterKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    settings.openRouterApiKey = cleaned
-                                    settings.setProviderEnabled("openrouter", enabled: !cleaned.isEmpty)
+                                    if !cleaned.isEmpty {
+                                        settings.saveOpenRouterKey(cleaned)
+                                        settings.setProviderEnabled("openrouter", enabled: true)
+                                    }
+                                    uiState.openRouterKeyInput = ""
                                     uiState.isEditingOpenRouterKey = false
                                     usageManager.reloadProviders()
                                     Task {
@@ -629,9 +663,11 @@ struct OpenRouterSectionView: View {
                                     }
                                 }
                                 .controlSize(.small)
+                                .disabled(uiState.openRouterKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                                 
-                                if snapshot.isConnected {
+                                if settings.hasOpenRouterKey {
                                     Button(action: {
+                                        uiState.openRouterKeyInput = ""
                                         uiState.isEditingOpenRouterKey = false
                                     }) {
                                         Text("✕")
@@ -644,26 +680,31 @@ struct OpenRouterSectionView: View {
                         }
                     } else {
                         HStack {
-                            let key = settings.openRouterApiKey
-                            let displayKey = key.count > 10 ? "\(key.prefix(8))...\(key.suffix(4))" : key
-                            Text("API Key: \(displayKey)")
-                                .font(.system(size: 9.5, design: .monospaced))
-                                .foregroundColor(.secondary)
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.shield.fill")
+                                    .foregroundColor(.green)
+                                    .font(.system(size: 10))
+                                Text(L10n.keySavedSecurely)
+                                    .font(.system(size: 9.5, weight: .medium))
+                                    .foregroundColor(.secondary)
+                            }
                             
                             Spacer()
                             
                             Button(action: {
-                                uiState.openRouterKeyInput = settings.openRouterApiKey
+                                uiState.openRouterKeyInput = "" // 평문 불러오지 않고 신규 입력 준비
                                 uiState.isEditingOpenRouterKey = true
                             }) {
                                 HStack(spacing: 2) {
-                                    Image(systemName: "pencil")
-                                    Text(L10n.isKorean ? "수정" : "Edit")
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 8))
+                                    Text(L10n.replaceKey)
                                 }
                                 .font(.system(size: 9))
                                 .foregroundColor(.accentColor)
                             }
                             .buttonStyle(.plain)
+                            .help(L10n.replaceKey)
                         }
                         .padding(.vertical, 2)
                     }
@@ -676,7 +717,7 @@ struct OpenRouterSectionView: View {
                 .frame(maxWidth: .infinity)
                 
                 // Right: 토큰 트렌드 & 코스트 환산
-                ProviderTrendView(trend: snapshot.trendSummary)
+                ProviderTrendView(title: L10n.openRouterTitle, trend: snapshot.trendSummary)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -685,18 +726,35 @@ struct OpenRouterSectionView: View {
 
 // MARK: - Shared Provider Trend View (Usage Trend & Daily Breakdown)
 struct ProviderTrendView: View {
+    let title: String
     let trend: UsageTrendSummary
+    @ObservedObject var uiState = PopoverUIState.shared
     
     var body: some View {
         VStack(spacing: 5) {
-            HStack {
-                Text(L10n.usageTrend)
-                    .font(.system(size: 9.5, weight: .bold))
-                
-                Spacer()
-                
-                MiniSparklineView(bars: trend.dailyBars)
+            Button(action: {
+                uiState.selectedTrendTitle = title
+                uiState.selectedTrendSummary = trend
+                uiState.showDetailedTrendPopover = true
+            }) {
+                HStack {
+                    HStack(spacing: 3) {
+                        Text(L10n.usageTrend)
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundColor(.primary)
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 7.5))
+                            .foregroundColor(.accentColor)
+                    }
+                    
+                    Spacer()
+                    
+                    MiniSparklineView(bars: trend.dailyBars)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .help(L10n.isKorean ? "클릭하여 30일 상세 트렌드 차트 및 X/Y축 통계 보기" : "Click to view detailed 30-day trend chart")
             
             Divider()
             
@@ -749,6 +807,268 @@ struct ProviderTrendView: View {
         } else {
             return "\(count) tokens"
         }
+    }
+}
+
+// MARK: - Detailed Usage Trend Popover View (Enlarged with X and Y Axes)
+struct DetailedTrendPopoverView: View {
+    let title: String
+    let summary: UsageTrendSummary
+    @ObservedObject var uiState = PopoverUIState.shared
+    
+    var dailyPoints: [DailyUsagePoint] {
+        summary.dailyPoints
+    }
+    
+    var maxTokens: Int {
+        let maxVal = dailyPoints.map { $0.tokens }.max() ?? 0
+        return max(maxVal, 1)
+    }
+    
+    var peakPoint: DailyUsagePoint? {
+        dailyPoints.max(by: { $0.tokens < $1.tokens })
+    }
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            // Title Header with close button
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "chart.bar.xaxis")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.accentColor)
+                    Text("\(title) \(L10n.detailedTrendTitle)")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("(최근 30일)")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    uiState.showDetailedTrendPopover = false
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary.opacity(0.8))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            // 4 Summary Metrics Cards
+            HStack(spacing: 8) {
+                MetricCard(
+                    title: L10n.totalTokens,
+                    value: formatTokens(summary.last30DaysTokens),
+                    color: .primary
+                )
+                
+                MetricCard(
+                    title: L10n.isKorean ? "총 환산비용" : "Total Cost",
+                    value: String(format: "$%.2f", summary.last30DaysSpendUSD),
+                    color: .green
+                )
+                
+                MetricCard(
+                    title: L10n.dailyAverage,
+                    value: formatTokens(summary.last30DaysTokens / max(dailyPoints.count, 1)),
+                    color: .accentColor
+                )
+                
+                MetricCard(
+                    title: L10n.peakDay,
+                    value: peakPoint != nil && (peakPoint?.tokens ?? 0) > 0 ? "\(peakPoint!.dateLabel): \(formatTokens(peakPoint!.tokens))" : "-",
+                    color: .orange
+                )
+            }
+            
+            // Interactive Inspection Banner
+            HStack {
+                if let idx = uiState.hoveredTrendIndex, idx < dailyPoints.count {
+                    let pt = dailyPoints[idx]
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 6, height: 6)
+                        Text("\(pt.dateString) (\(pt.dateLabel))")
+                            .font(.system(size: 10.5, weight: .bold))
+                        Text("•")
+                            .foregroundColor(.secondary)
+                        Text("\(formatTokens(pt.tokens)) tokens")
+                            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.accentColor)
+                        Text("•")
+                            .foregroundColor(.secondary)
+                        Text(String(format: "$%.2f", pt.spendUSD))
+                            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.green)
+                    }
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "hand.point.up.left")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                        Text(L10n.trendChartTip)
+                            .font(.system(size: 9.5))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(NSColor.separatorColor).opacity(0.1))
+            .cornerRadius(5)
+            
+            // Detailed Chart Area with Y-Axis & X-Axis
+            VStack(spacing: 4) {
+                HStack(alignment: .bottom, spacing: 6) {
+                    // Y-Axis Labels
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text(formatTokens(maxTokens))
+                            .font(.system(size: 8, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(formatTokens(maxTokens / 2))
+                            .font(.system(size: 8, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("0")
+                            .font(.system(size: 8, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(width: 44, height: 110)
+                    
+                    // Chart Columns Plot
+                    ZStack(alignment: .bottomLeading) {
+                        // Horizontal Grid lines (100%, 50%, 0%)
+                        VStack(spacing: 0) {
+                            Divider().opacity(0.5)
+                            Spacer()
+                            Divider().opacity(0.25)
+                            Spacer()
+                            Divider().opacity(0.6)
+                        }
+                        .frame(height: 110)
+                        
+                        // 30 Bars
+                        HStack(alignment: .bottom, spacing: 3) {
+                            ForEach(0..<dailyPoints.count, id: \.self) { idx in
+                                let pt = dailyPoints[idx]
+                                let heightFraction = CGFloat(pt.tokens) / CGFloat(maxTokens)
+                                let isHovered = uiState.hoveredTrendIndex == idx
+                                
+                                VStack(spacing: 0) {
+                                    Spacer(minLength: 0)
+                                    
+                                    if pt.tokens > 0 {
+                                        RoundedRectangle(cornerRadius: 1.5)
+                                            .fill(isHovered ? Color.orange : Color.accentColor)
+                                            .frame(height: max(4.0, heightFraction * 106.0))
+                                            .shadow(color: isHovered ? Color.orange.opacity(0.4) : Color.clear, radius: 2)
+                                    } else {
+                                        Circle()
+                                            .fill(isHovered ? Color.orange : Color.accentColor.opacity(0.3))
+                                            .frame(width: 3, height: 3)
+                                            .padding(.bottom, 1)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: 110, alignment: .bottom)
+                                .contentShape(Rectangle())
+                                .onHover { hovering in
+                                    if hovering {
+                                        uiState.hoveredTrendIndex = idx
+                                    } else if uiState.hoveredTrendIndex == idx {
+                                        uiState.hoveredTrendIndex = nil
+                                    }
+                                }
+                            }
+                        }
+                        .frame(height: 110)
+                    }
+                    .frame(height: 110)
+                }
+                
+                // X-Axis (Date ticks)
+                HStack(spacing: 0) {
+                    Spacer().frame(width: 50) // offset for Y-axis
+                    
+                    // 5 date ticks: index 0 (29일 전), 7, 14, 21, 29 (오늘)
+                    HStack {
+                        if !dailyPoints.isEmpty {
+                            Text(dailyPoints[0].dateLabel)
+                                .font(.system(size: 8, design: .monospaced))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            if dailyPoints.count > 7 {
+                                Text(dailyPoints[7].dateLabel)
+                                    .font(.system(size: 8, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            if dailyPoints.count > 14 {
+                                Text(dailyPoints[14].dateLabel)
+                                    .font(.system(size: 8, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            if dailyPoints.count > 21 {
+                                Text(dailyPoints[21].dateLabel)
+                                    .font(.system(size: 8, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            Text(dailyPoints.last?.dateLabel ?? "")
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundColor(.primary)
+                        }
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(8)
+        }
+        .padding(16)
+        .frame(width: 480)
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+    
+    private func formatTokens(_ count: Int) -> String {
+        if count >= 1_000_000_000 {
+            return String(format: "%.1fB", Double(count) / 1_000_000_000.0)
+        } else if count >= 1_000_000 {
+            return String(format: "%.1fM", Double(count) / 1_000_000.0)
+        } else if count >= 1_000 {
+            return String(format: "%.1fK", Double(count) / 1_000.0)
+        } else {
+            return "\(count)"
+        }
+    }
+}
+
+struct MetricCard: View {
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 8.5))
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(6)
     }
 }
 

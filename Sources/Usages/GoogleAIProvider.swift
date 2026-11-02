@@ -485,16 +485,23 @@ public final class GoogleAIProvider: @unchecked Sendable {
         var last30DaysSpend = 0.0
         var last30DaysTokens = 0
         var dailyTokenCounts: [Int] = []
+        var dailyPoints: [DailyUsagePoint] = []
+        
+        let labelFormatter = DateFormatter()
+        labelFormatter.dateFormat = "MM/dd"
+        labelFormatter.timeZone = TimeZone.current
         
         for dayOffset in (0..<30).reversed() {
             if let targetDate = calendar.date(byAdding: .day, value: -dayOffset, to: now) {
                 let dStr = formatter.string(from: targetDate)
+                let lStr = labelFormatter.string(from: targetDate)
                 let steps = stepsByDate[dStr] ?? 0
                 let tok = steps * tokensPerStep
                 let spend = Double(tok) * costPerToken
                 last30DaysSpend += spend
                 last30DaysTokens += tok
                 dailyTokenCounts.append(tok)
+                dailyPoints.append(DailyUsagePoint(dateString: dStr, dateLabel: lStr, spendUSD: spend, tokens: tok, normalized: 0.0))
             } else {
                 dailyTokenCounts.append(0)
             }
@@ -506,6 +513,12 @@ public final class GoogleAIProvider: @unchecked Sendable {
             return Double(count) / Double(maxTokens)
         }
         
+        var normalizedPoints: [DailyUsagePoint] = []
+        for p in dailyPoints {
+            let norm = p.tokens > 0 ? (Double(p.tokens) / Double(maxTokens)) : 0.0
+            normalizedPoints.append(DailyUsagePoint(dateString: p.dateString, dateLabel: p.dateLabel, spendUSD: p.spendUSD, tokens: p.tokens, normalized: norm))
+        }
+        
         return UsageTrendSummary(
             todaySpendUSD: todaySpend,
             todayTokens: todayTokens,
@@ -513,7 +526,8 @@ public final class GoogleAIProvider: @unchecked Sendable {
             yesterdayTokens: yesterdayTokens,
             last30DaysSpendUSD: last30DaysSpend,
             last30DaysTokens: last30DaysTokens,
-            dailyBars: dailyBars
+            dailyBars: dailyBars,
+            dailyPoints: normalizedPoints
         )
     }
 }

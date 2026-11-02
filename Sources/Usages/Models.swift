@@ -1,5 +1,52 @@
 import Foundation
 import SwiftUI
+import Security
+
+// MARK: - Native macOS Keychain Helper for Secure Credentials
+public final class KeychainHelper {
+    public static let shared = KeychainHelper()
+    private let service = "com.melissasoft.aiusages"
+    private let account = "openrouter_api_key"
+    
+    public func save(key: String) {
+        guard let data = key.data(using: .utf8) else { return }
+        delete()
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+        SecItemAdd(query as CFDictionary, nil)
+    }
+    
+    public func read() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var item: CFTypeRef?
+        if SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+           let data = item as? Data,
+           let str = String(data: data, encoding: .utf8) {
+            return str
+        }
+        return nil
+    }
+    
+    public func delete() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
 
 public enum ServiceType: String, Codable, CaseIterable {
     case openCode = "OpenCode Go"
@@ -179,6 +226,29 @@ public struct ServiceUsageSnapshot {
 }
 
 // MARK: - Token & Cost Snapshot (OpenRouter, OpenAI, etc.)
+public struct DailyUsagePoint: Identifiable, Sendable {
+    public var id: String { dateString }
+    public let dateString: String // "2026-11-02"
+    public let dateLabel: String  // "11/02"
+    public let spendUSD: Double
+    public let tokens: Int
+    public let normalized: Double // 0.0 to 1.0
+    
+    public init(
+        dateString: String = "",
+        dateLabel: String = "",
+        spendUSD: Double = 0.0,
+        tokens: Int = 0,
+        normalized: Double = 0.0
+    ) {
+        self.dateString = dateString
+        self.dateLabel = dateLabel
+        self.spendUSD = spendUSD
+        self.tokens = tokens
+        self.normalized = normalized
+    }
+}
+
 public struct UsageTrendSummary: Sendable {
     public var todaySpendUSD: Double
     public var todayTokens: Int
@@ -187,6 +257,7 @@ public struct UsageTrendSummary: Sendable {
     public var last30DaysSpendUSD: Double
     public var last30DaysTokens: Int
     public var dailyBars: [Double] // 30 values, 0.0 to 1.0
+    public var dailyPoints: [DailyUsagePoint]
     
     public init(
         todaySpendUSD: Double = 0.0,
@@ -195,7 +266,8 @@ public struct UsageTrendSummary: Sendable {
         yesterdayTokens: Int = 0,
         last30DaysSpendUSD: Double = 0.0,
         last30DaysTokens: Int = 0,
-        dailyBars: [Double] = []
+        dailyBars: [Double] = [],
+        dailyPoints: [DailyUsagePoint] = []
     ) {
         self.todaySpendUSD = todaySpendUSD
         self.todayTokens = todayTokens
@@ -204,6 +276,7 @@ public struct UsageTrendSummary: Sendable {
         self.last30DaysSpendUSD = last30DaysSpendUSD
         self.last30DaysTokens = last30DaysTokens
         self.dailyBars = dailyBars.isEmpty ? Array(repeating: 0.0, count: 30) : dailyBars
+        self.dailyPoints = dailyPoints
     }
 }
 
@@ -265,6 +338,12 @@ public final class PopoverUIState: ObservableObject {
     @Published public var showKeySavedToast = false
     @Published public var isEditingGoogleBillingDay = false
     @Published public var selectedBillingDay = 1
+    
+    // Detailed Trend Popover state
+    @Published public var selectedTrendTitle: String = ""
+    @Published public var selectedTrendSummary: UsageTrendSummary? = nil
+    @Published public var showDetailedTrendPopover: Bool = false
+    @Published public var hoveredTrendIndex: Int? = nil
 }
 
 public final class AppSettings: ObservableObject {
@@ -288,8 +367,31 @@ public final class AppSettings: ObservableObject {
         didSet { defaults.set(selectedTabIndex, forKey: "selectedTabIndex") }
     }
     
-    @Published public var openRouterApiKey: String {
-        didSet { defaults.set(openRouterApiKey, forKey: "openRouterApiKey") }
+    // In-memory key backed by macOS Keychain (절대 평문 노출/역조회 불가)
+    @Published public private(set) var openRouterApiKey: String = ""
+    
+    public var hasOpenRouterKey: Bool {
+        return !openRouterApiKey.isEmpty
+    }
+    
+    public func saveOpenRouterKey(_ key: String) {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.openRouterApiKey = trimmed
+        if trimmed.isEmpty {
+            KeychainHelper.shared.delete()
+        } else {
+            KeychainHelper.shared.save(key: trimmed)
+        }
+        defaults.removeObject(forKey: "openRouterApiKey") // 평문 제거
+        objectWillChange.send()
+    }
+    
+    public func deleteOpenRouterKey() {
+        self.openRouterApiKey = ""
+        KeychainHelper.shared.delete()
+        defaults.removeObject(forKey: "openRouterApiKey")
+        setProviderEnabled("openrouter", enabled: false)
+        objectWillChange.send()
     }
     
     @Published public var googleBillingDayOfMonth: Int {
@@ -319,7 +421,18 @@ public final class AppSettings: ObservableObject {
         }
         
         self.selectedTabIndex = defaults.integer(forKey: "selectedTabIndex")
-        self.openRouterApiKey = defaults.string(forKey: "openRouterApiKey") ?? ""
+        
+        // Keychain에서 보안 로드 (legacy UserDefaults 이전 지원)
+        if let kcKey = KeychainHelper.shared.read(), !kcKey.isEmpty {
+            self.openRouterApiKey = kcKey
+        } else if let legacyKey = defaults.string(forKey: "openRouterApiKey"), !legacyKey.isEmpty {
+            KeychainHelper.shared.save(key: legacyKey)
+            defaults.removeObject(forKey: "openRouterApiKey")
+            self.openRouterApiKey = legacyKey
+        } else {
+            self.openRouterApiKey = ""
+        }
+        
         self.googleBillingDayOfMonth = defaults.integer(forKey: "googleBillingDayOfMonth")
     }
     

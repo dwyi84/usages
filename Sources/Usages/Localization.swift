@@ -48,6 +48,13 @@ public struct L10n {
     public static var connectKey: String { isKorean ? "API 키 설정" : "Configure Key" }
     public static var paste: String { isKorean ? "붙여넣기" : "Paste" }
     public static var usageTrend: String { isKorean ? "사용 트렌드 (Usage Trend)" : "Usage Trend" }
+    public static var detailedTrendTitle: String { isKorean ? "상세 사용 트렌드" : "Detailed Usage Trend" }
+    public static var dailyAverage: String { isKorean ? "일평균 사용" : "Daily Avg" }
+    public static var peakDay: String { isKorean ? "최대 사용일" : "Peak Day" }
+    public static var keySavedSecurely: String { isKorean ? "API Key 안전 등록됨" : "API Key Configured" }
+    public static var replaceKey: String { isKorean ? "새 키 등록" : "Replace Key" }
+    public static var deleteKey: String { isKorean ? "키 삭제" : "Delete Key" }
+    public static var trendChartTip: String { isKorean ? "막대에 마우스를 올리면 일별 토큰과 비용을 확인할 수 있습니다." : "Hover over a bar to view daily tokens and spend." }
     public static var today: String { isKorean ? "오늘" : "Today" }
     public static var yesterday: String { isKorean ? "어제" : "Yesterday" }
     public static var last30Days: String { isKorean ? "최근 30일" : "Last 30 Days" }
