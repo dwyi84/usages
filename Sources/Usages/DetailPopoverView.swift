@@ -74,7 +74,7 @@ public struct DetailPopoverView: View {
                     Circle()
                         .fill(Color.secondary.opacity(0.4))
                         .frame(width: 5, height: 5)
-                    Text("메뉴바 게이지: [왼쪽] OpenCode 월간 · [오른쪽] Google AI 월간")
+                    Text("메뉴바 게이지: [왼쪽] OpenCode 잔여량 · [오른쪽] Google AI 잔여량")
                         .font(.system(size: 9.5))
                         .foregroundColor(.secondary)
                 }
@@ -92,7 +92,7 @@ public struct DetailPopoverView: View {
             .padding(.vertical, 8)
             .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(width: 440) // 스크롤바가 생기지 않도록 여유있는 가로/세로 레이아웃
+        .frame(width: 440)
         .background(Color(NSColor.windowBackgroundColor))
     }
     
@@ -142,27 +142,24 @@ struct OpenCodeSectionView: View {
                 .cornerRadius(6)
             }
             
-            // 3대 윈도우 진행 바 (5시간, 주간, 월간)
+            // 3대 윈도우 잔여량 바 (5시간, 주간, 월간)
             VStack(spacing: 7) {
-                CompactProgressRow(
+                RemainingProgressRow(
                     label: "5시간 롤링 한도",
-                    percent: windows.rollingPercent,
-                    infoText: windows.rollingResetString,
-                    barColor: .green
+                    usedPercent: windows.rollingPercent,
+                    infoText: windows.rollingResetString
                 )
                 
-                CompactProgressRow(
+                RemainingProgressRow(
                     label: "주간 한도 (Weekly)",
-                    percent: windows.weeklyPercent,
-                    infoText: windows.weeklyResetString,
-                    barColor: .teal
+                    usedPercent: windows.weeklyPercent,
+                    infoText: windows.weeklyResetString
                 )
                 
-                CompactProgressRow(
-                    label: "월간 쿼터 (Monthly) ★아이콘 연동",
-                    percent: windows.monthlyPercent,
-                    infoText: "결제일까지 \(snapshot.daysUntilBilling)일 남음",
-                    barColor: .indigo
+                RemainingProgressRow(
+                    label: "월간 쿼터 (Monthly)",
+                    usedPercent: windows.monthlyPercent,
+                    infoText: "결제일까지 \(snapshot.daysUntilBilling)일 남음"
                 )
             }
             .padding(10)
@@ -223,27 +220,24 @@ struct GoogleAISectionView: View {
                 .cornerRadius(6)
             }
             
-            // 3대 모델 카테고리별 진행 바 (자사, 아르곤, 타사)
+            // 3대 모델 카테고리별 잔여량 바 (자사, 아르곤, 타사)
             VStack(spacing: 7) {
-                CompactProgressRow(
+                RemainingProgressRow(
                     label: "자사 모델 (Gemini Flash)",
-                    percent: cats.firstPartyPercent,
-                    infoText: "\(cats.firstPartyUsed) / \(cats.firstPartyLimit) 요청 소모",
-                    barColor: .blue
+                    usedPercent: cats.firstPartyPercent,
+                    infoText: "\(max(0, cats.firstPartyLimit - cats.firstPartyUsed)) / \(cats.firstPartyLimit) 요청 남음"
                 )
                 
-                CompactProgressRow(
+                RemainingProgressRow(
                     label: "아르곤 (Gemini 4 Argon 심층 추론)",
-                    percent: cats.argonPercent,
-                    infoText: "\(cats.argonUsed) / \(cats.argonLimit) 요청 소모",
-                    barColor: .orange
+                    usedPercent: cats.argonPercent,
+                    infoText: "\(max(0, cats.argonLimit - cats.argonUsed)) / \(cats.argonLimit) 요청 남음"
                 )
                 
-                CompactProgressRow(
+                RemainingProgressRow(
                     label: "타사 모델 (Claude / Third-party)",
-                    percent: cats.thirdPartyPercent,
-                    infoText: "\(cats.thirdPartyUsed) / \(cats.thirdPartyLimit) 요청 소모",
-                    barColor: .purple
+                    usedPercent: cats.thirdPartyPercent,
+                    infoText: "\(max(0, cats.thirdPartyLimit - cats.thirdPartyUsed)) / \(cats.thirdPartyLimit) 요청 남음"
                 )
             }
             .padding(10)
@@ -252,7 +246,8 @@ struct GoogleAISectionView: View {
             
             // 요약 수치 행
             HStack(spacing: 8) {
-                CompactMetric(title: "월간 종합율", value: "\(Int(cats.monthlyPercent))% 소모")
+                let monthlyRemaining = max(0, Int(round(100.0 - cats.monthlyPercent)))
+                CompactMetric(title: "월간 종합 잔여", value: "\(monthlyRemaining)% 남음")
                 CompactMetric(title: "오늘 총 토큰", value: formatTokens(snapshot.todayTokens))
                 CompactMetric(title: "일일 리셋", value: "자정 (00:00)")
                 CompactMetric(title: "인증 상태", value: "연결됨")
@@ -271,15 +266,25 @@ struct GoogleAISectionView: View {
     }
 }
 
-// MARK: - Compact UI Components (스크롤 없이 공간 최적화)
-struct CompactProgressRow: View {
+// MARK: - Remaining Progress Row (남은 양 기준)
+struct RemainingProgressRow: View {
     let label: String
-    let percent: Double
+    let usedPercent: Double
     let infoText: String
-    let barColor: Color
     
-    var remaining: Double {
-        max(0.0, min(100.0, 100.0 - percent))
+    var remainingPercent: Double {
+        max(0.0, min(100.0, 100.0 - usedPercent))
+    }
+    
+    // 남은 양 기준 색상 (충분: 초록, 보통: 주황, 위험: 빨강)
+    var barColor: Color {
+        if remainingPercent <= 15.0 {
+            return .red
+        } else if remainingPercent <= 35.0 {
+            return .orange
+        } else {
+            return .green
+        }
     }
     
     var body: some View {
@@ -288,12 +293,12 @@ struct CompactProgressRow: View {
                 Text(label)
                     .font(.system(size: 10.5, weight: .semibold))
                 Spacer()
-                Text("\(Int(round(percent)))% 소모 (잔여 \(Int(round(remaining)))%)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(percent >= 90 ? .red : (percent >= 75 ? .orange : .secondary))
+                Text("\(Int(round(remainingPercent)))% 남음")
+                    .font(.system(size: 10.5, weight: .bold))
+                    .foregroundColor(remainingPercent <= 15 ? .red : (remainingPercent <= 35 ? .orange : .primary))
             }
             
-            // Bar
+            // Remaining Gauge Bar (남은 양만큼 채워짐)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 3)
@@ -302,7 +307,7 @@ struct CompactProgressRow: View {
                     
                     RoundedRectangle(cornerRadius: 3)
                         .fill(barColor)
-                        .frame(width: max(0, geo.size.width * CGFloat(percent / 100.0)), height: 5.5)
+                        .frame(width: max(0, geo.size.width * CGFloat(remainingPercent / 100.0)), height: 5.5)
                 }
             }
             .frame(height: 5.5)

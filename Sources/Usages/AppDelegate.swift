@@ -69,8 +69,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             daysUntilReset: nearestBillingDays
         )
         
+        let ocRemaining = max(0, Int(round(100.0 - ocMonthly)))
+        let gRemaining = max(0, Int(round(100.0 - gMonthly)))
+        
         button.image = img
-        button.toolTip = "AI Usages\n· OpenCode Go 월간: \(Int(ocMonthly))% [구독 결제: \(oc.billingDateString) (D-\(oc.daysUntilBilling))]\n· Google AI Pro 월간: \(Int(gMonthly))% [구독 결제: \(g.billingDateString) (D-\(g.daysUntilBilling))]\n클릭하여 상세 보기"
+        button.toolTip = "AI Usages\n· OpenCode Go 월간: \(ocRemaining)% 남음 [구독 갱신: \(oc.billingDateString) (D-\(oc.daysUntilBilling))]\n· Google AI Pro 월간: \(gRemaining)% 남음 [구독 갱신: \(g.billingDateString) (D-\(g.daysUntilBilling))]\n클릭하여 상세 보기"
     }
     
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
