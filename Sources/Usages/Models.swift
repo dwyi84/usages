@@ -59,17 +59,17 @@ public struct OpenCodeWindows {
     public var monthlyRemainingPercent: Double = 36.0
     public var monthlyResetString: String = "Renews in 6d 13h"
     
-    public var nextBillingDateString: String = "6d 13h 후 자동 갱신"
+    public var nextBillingDateString: String = "6일 13시간 후 리셋"
     public var daysUntilBilling: Int = 6
     
     public init(
         fiveHourRemainingPercent: Double = 95.0,
-        fiveHourResetString: String = "Resets in 3h 37m",
+        fiveHourResetString: String = "3시간 37분 후 리셋",
         weeklyRemainingPercent: Double = 98.0,
-        weeklyResetString: String = "Resets in 6d 15h",
+        weeklyResetString: String = "6일 15시간 후 리셋",
         monthlyRemainingPercent: Double = 36.0,
-        monthlyResetString: String = "Renews in 6d 13h",
-        nextBillingDateString: String = "6d 13h 후 자동 갱신",
+        monthlyResetString: String = "6일 13시간 후 리셋",
+        nextBillingDateString: String = "6일 13시간 후 리셋",
         daysUntilBilling: Int = 6
     ) {
         self.fiveHourRemainingPercent = fiveHourRemainingPercent
@@ -149,6 +149,7 @@ public struct ServiceUsageSnapshot {
     
     public var openCodeWindows: OpenCodeWindows
     public var googleGroups: GoogleAIGroupLimits
+    public var trendSummary: UsageTrendSummary
     
     public init(
         service: ServiceType,
@@ -160,7 +161,8 @@ public struct ServiceUsageSnapshot {
         lastUpdated: Date = Date(),
         isAvailable: Bool = true,
         openCodeWindows: OpenCodeWindows = OpenCodeWindows(),
-        googleGroups: GoogleAIGroupLimits = GoogleAIGroupLimits()
+        googleGroups: GoogleAIGroupLimits = GoogleAIGroupLimits(),
+        trendSummary: UsageTrendSummary = UsageTrendSummary()
     ) {
         self.service = service
         self.planName = planName
@@ -172,6 +174,7 @@ public struct ServiceUsageSnapshot {
         self.isAvailable = isAvailable
         self.openCodeWindows = openCodeWindows
         self.googleGroups = googleGroups
+        self.trendSummary = trendSummary
     }
 }
 
@@ -258,7 +261,7 @@ public final class PopoverUIState: ObservableObject {
     public static let shared = PopoverUIState()
     @Published public var showProviderSettings = false
     @Published public var openRouterKeyInput = ""
-    @Published public var showOpenRouterKeyPlain = false
+    @Published public var isEditingOpenRouterKey = false
     @Published public var showKeySavedToast = false
     @Published public var isEditingGoogleBillingDay = false
     @Published public var selectedBillingDay = 1

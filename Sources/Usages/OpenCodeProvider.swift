@@ -80,8 +80,8 @@ public final class OpenCodeProvider: @unchecked Sendable {
                 
                 let fiveHourStr = L10n.isKorean ? "\(rollReset) 후 리셋" : "Resets in \(rollReset)"
                 let weeklyStr = L10n.isKorean ? "\(weekReset) 후 리셋" : "Resets in \(weekReset)"
-                let monthlyStr = L10n.isKorean ? "\(monthReset) 후 갱신" : "Renews in \(monthReset)"
-                let billingStr = L10n.isKorean ? "\(monthReset) 후 갱신" : "Renews in \(monthReset)"
+                let monthlyStr = L10n.isKorean ? "\(monthReset) 후 리셋" : "Resets in \(monthReset)"
+                let billingStr = L10n.isKorean ? "\(monthReset) 후 리셋" : "Resets in \(monthReset)"
                 
                 let windows = OpenCodeWindows(
                     fiveHourRemainingPercent: rollRem,
@@ -94,6 +94,8 @@ public final class OpenCodeProvider: @unchecked Sendable {
                     daysUntilBilling: daysRem
                 )
                 
+                let trend = fetchLocalUsageTrend()
+                
                 return ServiceUsageSnapshot(
                     service: .openCode,
                     planName: "Go Subscription",
@@ -103,7 +105,8 @@ public final class OpenCodeProvider: @unchecked Sendable {
                     status: monthRem <= 15 ? .critical : (monthRem <= 35 ? .warning : .normal),
                     lastUpdated: Date(),
                     isAvailable: true,
-                    openCodeWindows: windows
+                    openCodeWindows: windows,
+                    trendSummary: trend
                 )
             }
         } catch {}
@@ -117,8 +120,8 @@ public final class OpenCodeProvider: @unchecked Sendable {
         let monthReset = L10n.isKorean ? "6일 13시간" : "6d 13h"
         let fiveHourStr = L10n.isKorean ? "\(rollReset) 후 리셋" : "Resets in \(rollReset)"
         let weeklyStr = L10n.isKorean ? "\(weekReset) 후 리셋" : "Resets in \(weekReset)"
-        let monthlyStr = L10n.isKorean ? "\(monthReset) 후 갱신" : "Renews in \(monthReset)"
-        let billingStr = L10n.isKorean ? "\(monthReset) 후 갱신" : "Renews in \(monthReset)"
+        let monthlyStr = L10n.isKorean ? "\(monthReset) 후 리셋" : "Resets in \(monthReset)"
+        let billingStr = L10n.isKorean ? "\(monthReset) 후 리셋" : "Resets in \(monthReset)"
         
         let windows = OpenCodeWindows(
             fiveHourRemainingPercent: 95.0,
@@ -131,6 +134,8 @@ public final class OpenCodeProvider: @unchecked Sendable {
             daysUntilBilling: 6
         )
         
+        let trend = fetchLocalUsageTrend()
+        
         return ServiceUsageSnapshot(
             service: .openCode,
             planName: "Go Subscription",
@@ -140,7 +145,8 @@ public final class OpenCodeProvider: @unchecked Sendable {
             status: .normal,
             lastUpdated: Date(),
             isAvailable: isAvailable,
-            openCodeWindows: windows
+            openCodeWindows: windows,
+            trendSummary: trend
         )
     }
     
@@ -200,5 +206,91 @@ public final class OpenCodeProvider: @unchecked Sendable {
             return fallback
         }
         return max(0, Int(ceil(date.timeIntervalSinceNow / 86400.0)))
+    }
+    
+    private func fetchLocalUsageTrend() -> UsageTrendSummary {
+        let dbPath = "\(homeDir)/.local/share/opencode/opencode.db"
+        guard FileManager.default.fileExists(atPath: dbPath) else { return UsageTrendSummary() }
+        
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return UsageTrendSummary() }
+        defer { sqlite3_close(db) }
+        
+        let query = """
+        SELECT 
+            date(json_extract(data, '$.time.created') / 1000, 'unixepoch', 'localtime') as day,
+            coalesce(sum(json_extract(data, '$.cost')), 0.0) as spend,
+            coalesce(sum(json_extract(data, '$.tokens.input') + json_extract(data, '$.tokens.output')), 0) as tokens
+        FROM session_message 
+        WHERE json_extract(data, '$.time.created') IS NOT NULL
+        GROUP BY day
+        ORDER BY day DESC
+        LIMIT 35;
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return UsageTrendSummary() }
+        defer { sqlite3_finalize(stmt) }
+        
+        var spendByDate: [String: Double] = [:]
+        var tokensByDate: [String: Int] = [:]
+        
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let dStr = sqlite3_column_text(stmt, 0) {
+                let day = String(cString: dStr)
+                let spend = sqlite3_column_double(stmt, 1)
+                let tokens = Int(sqlite3_column_int64(stmt, 2))
+                spendByDate[day] = spend
+                tokensByDate[day] = tokens
+            }
+        }
+        
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+        
+        let todayStr = formatter.string(from: now)
+        let yesterdayDate = calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        let yesterdayStr = formatter.string(from: yesterdayDate)
+        
+        let todaySpend = spendByDate[todayStr] ?? 0.0
+        let todayTokens = tokensByDate[todayStr] ?? 0
+        let yesterdaySpend = spendByDate[yesterdayStr] ?? 0.0
+        let yesterdayTokens = tokensByDate[yesterdayStr] ?? 0
+        
+        var last30DaysSpend = 0.0
+        var last30DaysTokens = 0
+        var dailyTokenCounts: [Int] = []
+        
+        for dayOffset in (0..<30).reversed() {
+            if let targetDate = calendar.date(byAdding: .day, value: -dayOffset, to: now) {
+                let dStr = formatter.string(from: targetDate)
+                let spend = spendByDate[dStr] ?? 0.0
+                let tok = tokensByDate[dStr] ?? 0
+                last30DaysSpend += spend
+                last30DaysTokens += tok
+                dailyTokenCounts.append(tok)
+            } else {
+                dailyTokenCounts.append(0)
+            }
+        }
+        
+        let maxTokens = max(dailyTokenCounts.max() ?? 1, 1)
+        let dailyBars = dailyTokenCounts.map { count -> Double in
+            if count == 0 { return 0.0 }
+            return Double(count) / Double(maxTokens)
+        }
+        
+        return UsageTrendSummary(
+            todaySpendUSD: todaySpend,
+            todayTokens: todayTokens,
+            yesterdaySpendUSD: yesterdaySpend,
+            yesterdayTokens: yesterdayTokens,
+            last30DaysSpendUSD: last30DaysSpend,
+            last30DaysTokens: last30DaysTokens,
+            dailyBars: dailyBars
+        )
     }
 }

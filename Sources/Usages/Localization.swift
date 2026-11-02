@@ -58,15 +58,15 @@ public struct L10n {
     public static var remaining: String { isKorean ? "남음" : "remaining" }
     public static var quotaAvailable: String { isKorean ? "쿼터 여유" : "Quota available" }
     public static var rateLimited: String { isKorean ? "요청 한도 대기 중" : "Rate limited" }
-    public static var setBillingDay: String { isKorean ? "+ 결제일 설정" : "+ Set Billing Day" }
-    public static var billingDayPrompt: String { isKorean ? "매월 결제일 선택:" : "Select Monthly Billing Day:" }
-    public static var autoSyncedTooltip: String { isKorean ? "OpenCode API에서 자동 제공되는 결제/갱신일입니다." : "Auto-synced from OpenCode API" }
-    public static var googleBillingTooltip: String { isKorean ? "Google은 결제일 API를 제공하지 않아 직접 설정합니다. 클릭하여 변경." : "Google quota API does not expose billing date. Click to configure." }
+    public static var setBillingDay: String { isKorean ? "+ 리셋일 설정" : "+ Set Reset Day" }
+    public static var billingDayPrompt: String { isKorean ? "매월 리셋일 선택:" : "Select Monthly Reset Day:" }
+    public static var autoSyncedTooltip: String { isKorean ? "OpenCode API에서 자동 제공되는 리셋일입니다." : "Auto-synced from OpenCode API" }
+    public static var googleBillingTooltip: String { isKorean ? "Google은 리셋일 API를 제공하지 않아 직접 설정합니다. 클릭하여 변경." : "Google quota API does not expose reset date. Click to configure." }
     public static var reset: String { isKorean ? "초기화" : "Reset" }
     public static var dayUnit: String { isKorean ? "일" : "th" }
     
     // Footer & Settings
-    public static var autoRefresh: String { isKorean ? "자동 갱신:" : "Auto Refresh:" }
+    public static var autoRefresh: String { isKorean ? "자동 리셋:" : "Auto Refresh:" }
     public static var min1: String { isKorean ? "1분" : "1m" }
     public static var min3: String { isKorean ? "3분" : "3m" }
     public static var min5: String { isKorean ? "5분" : "5m" }

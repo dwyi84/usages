@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 
 public final class GoogleAIProvider: @unchecked Sendable {
     public static let shared = GoogleAIProvider()
@@ -89,9 +90,9 @@ public final class GoogleAIProvider: @unchecked Sendable {
         let isKorean = L10n.isKorean
         let dateStr: String
         if days == 0 {
-            dateStr = isKorean ? "D-Day (오늘 갱신)" : "Renews today"
+            dateStr = isKorean ? "D-Day (오늘 리셋)" : "Resets today"
         } else {
-            dateStr = isKorean ? "D-\(days)일 후 갱신 (매월 \(dayOfMonth)일)" : "Renews in \(days)d (\(dayOfMonth)th)"
+            dateStr = isKorean ? "D-\(days)일 후 리셋 (매월 \(dayOfMonth)일)" : "Resets in \(days)d (\(dayOfMonth)th)"
         }
         return (dateStr, days)
     }
@@ -110,6 +111,8 @@ public final class GoogleAIProvider: @unchecked Sendable {
             resolvedStatus = overallRemaining <= 15 ? .critical : (overallRemaining <= 35 ? .warning : .normal)
         }
         
+        let trend = fetchLocalUsageTrend()
+        
         return ServiceUsageSnapshot(
             service: .googleAI,
             planName: "Google AI Pro Plan",
@@ -119,7 +122,8 @@ public final class GoogleAIProvider: @unchecked Sendable {
             status: resolvedStatus,
             lastUpdated: Date(),
             isAvailable: isAvailable,
-            googleGroups: limits
+            googleGroups: limits,
+            trendSummary: trend
         )
     }
     
@@ -424,5 +428,92 @@ public final class GoogleAIProvider: @unchecked Sendable {
             return "\(hours)시간 \(mins)분 후 초기화"
         }
         return "Refreshes in \(hours)h \(mins)m"
+    }
+    
+    private func fetchLocalUsageTrend() -> UsageTrendSummary {
+        let dbPath = ("~/.gemini/antigravity-cli/conversation_summaries.db" as NSString).expandingTildeInPath
+        guard FileManager.default.fileExists(atPath: dbPath) else { return UsageTrendSummary() }
+        
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return UsageTrendSummary() }
+        defer { sqlite3_close(db) }
+        
+        let query = """
+        SELECT 
+            date(last_modified_time) as day, 
+            sum(step_count) as steps 
+        FROM conversation_summaries 
+        WHERE date(last_modified_time) >= date('now', '-35 days') 
+        GROUP BY day 
+        ORDER BY day ASC;
+        """
+        
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return UsageTrendSummary() }
+        defer { sqlite3_finalize(stmt) }
+        
+        var stepsByDate: [String: Int] = [:]
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let dStr = sqlite3_column_text(stmt, 0) {
+                let day = String(cString: dStr)
+                let steps = Int(sqlite3_column_int64(stmt, 1))
+                stepsByDate[day] = steps
+            }
+        }
+        
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+        
+        let todayStr = formatter.string(from: now)
+        let yesterdayDate = calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        let yesterdayStr = formatter.string(from: yesterdayDate)
+        
+        let tokensPerStep = 25_000
+        let costPerToken = 0.50 / 1_000_000.0
+        
+        let todaySteps = stepsByDate[todayStr] ?? 0
+        let todayTokens = todaySteps * tokensPerStep
+        let todaySpend = Double(todayTokens) * costPerToken
+        
+        let yesterdaySteps = stepsByDate[yesterdayStr] ?? 0
+        let yesterdayTokens = yesterdaySteps * tokensPerStep
+        let yesterdaySpend = Double(yesterdayTokens) * costPerToken
+        
+        var last30DaysSpend = 0.0
+        var last30DaysTokens = 0
+        var dailyTokenCounts: [Int] = []
+        
+        for dayOffset in (0..<30).reversed() {
+            if let targetDate = calendar.date(byAdding: .day, value: -dayOffset, to: now) {
+                let dStr = formatter.string(from: targetDate)
+                let steps = stepsByDate[dStr] ?? 0
+                let tok = steps * tokensPerStep
+                let spend = Double(tok) * costPerToken
+                last30DaysSpend += spend
+                last30DaysTokens += tok
+                dailyTokenCounts.append(tok)
+            } else {
+                dailyTokenCounts.append(0)
+            }
+        }
+        
+        let maxTokens = max(dailyTokenCounts.max() ?? 1, 1)
+        let dailyBars = dailyTokenCounts.map { count -> Double in
+            if count == 0 { return 0.0 }
+            return Double(count) / Double(maxTokens)
+        }
+        
+        return UsageTrendSummary(
+            todaySpendUSD: todaySpend,
+            todayTokens: todayTokens,
+            yesterdaySpendUSD: yesterdaySpend,
+            yesterdayTokens: yesterdayTokens,
+            last30DaysSpendUSD: last30DaysSpend,
+            last30DaysTokens: last30DaysTokens,
+            dailyBars: dailyBars
+        )
     }
 }
