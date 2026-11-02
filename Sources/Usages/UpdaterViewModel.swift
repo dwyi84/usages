@@ -24,7 +24,7 @@ public final class UpdaterViewModel: ObservableObject {
     public static let repoName = "usages"
     public static let currentVersion: String = {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-            ?? "0.0.1"
+            ?? "0.1.0"
     }()
 
     @Published public private(set) var updateState: UpdateState = .idle

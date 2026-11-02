@@ -12,9 +12,20 @@ public struct L10n {
     public static var appTitle: String { "AI Usages" }
     public static var refreshTooltip: String { isKorean ? "새로고침" : "Refresh" }
     
+    // Tabs
+    public static var tabQuotas: String { isKorean ? "한도 쿼터" : "Quotas" }
+    public static var tabTokenCost: String { isKorean ? "토큰 & 비용" : "Tokens & Cost" }
+    
+    // Provider list section titles
+    public static var activeProviders: String { isKorean ? "사용 중인 프로바이더" : "Active Providers" }
+    public static var availableProviders: String { isKorean ? "추가 가능한 프로바이더" : "Available Providers" }
+    public static var detectedBadge: String { isKorean ? "로컬 감지됨" : "Detected" }
+    public static var notDetectedBadge: String { isKorean ? "미설치" : "Not Detected" }
+    
     // Services
     public static var openCodeTitle: String { "Go Subscription" }
     public static var googleAITitle: String { "Google AI Pro" }
+    public static var openRouterTitle: String { "OpenRouter" }
     
     // Quota labels
     public static var fiveHourWindow: String { isKorean ? "5시간 윈도우" : "5-hour window" }
@@ -24,22 +35,29 @@ public struct L10n {
     public static var claudeAndGpt: String { "Claude & GPT" }
     public static var geminiArgon: String { "Gemini 4 Argon" }
     
+    // Token & Cost labels
+    public static var balance: String { isKorean ? "잔액" : "Balance" }
+    public static var todaySpend: String { isKorean ? "오늘 사용액" : "Today Spend" }
+    public static var monthSpend: String { isKorean ? "당월 사용액" : "Month Spend" }
+    public static var totalTokens: String { isKorean ? "총 토큰" : "Total Tokens" }
+    public static var promptTokens: String { isKorean ? "프롬프트" : "Prompt" }
+    public static var completionTokens: String { isKorean ? "완성" : "Completion" }
+    public static var noTokenProviders: String { isKorean ? "설정에서 OpenRouter API 키를 등록하면 실시간 잔액 및 토큰 사용량이 표시됩니다." : "Add an OpenRouter API key in settings to track real-time balance and token spend." }
+    public static var enterOpenRouterKey: String { isKorean ? "OpenRouter API Key 입력 (sk-or-...)" : "Enter OpenRouter API Key (sk-or-...)" }
+    public static var save: String { isKorean ? "저장" : "Save" }
+    public static var connectKey: String { isKorean ? "API 키 설정" : "Configure Key" }
+    
     // Units & States
     public static var remaining: String { isKorean ? "남음" : "remaining" }
     public static var quotaAvailable: String { isKorean ? "쿼터 여유" : "Quota available" }
-    public static func refreshesIn(_ text: String) -> String {
-        return text
-    }
-    public static func renewsIn(_ text: String) -> String {
-        return text
-    }
+    public static var rateLimited: String { isKorean ? "요청 한도 대기 중" : "Rate limited" }
     
     // Footer & Settings
     public static var autoRefresh: String { isKorean ? "자동 갱신:" : "Auto Refresh:" }
-    public static var sec15: String { isKorean ? "15초" : "15s" }
-    public static var sec30: String { isKorean ? "30초" : "30s" }
     public static var min1: String { isKorean ? "1분" : "1m" }
+    public static var min3: String { isKorean ? "3분" : "3m" }
     public static var min5: String { isKorean ? "5분" : "5m" }
+    public static var min15: String { isKorean ? "15분" : "15m" }
     
     public static var launchAtLogin: String { isKorean ? "로그인 시 자동 시작" : "Launch at Login" }
     public static var quit: String { isKorean ? "종료" : "Quit" }

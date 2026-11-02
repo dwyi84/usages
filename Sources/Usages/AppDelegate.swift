@@ -45,21 +45,41 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public func updateStatusIcon() {
         guard let button = statusItem?.button else { return }
         
-        let oc = usageManager.openCodeSnapshot
-        let g = usageManager.googleAISnapshot
+        var gaugeItems: [BatteryGaugeRenderer.GaugeItem] = []
+        var tooltips: [String] = ["AI Usages"]
+        var nearestBillingDays = 999
         
-        let nearestBillingDays = min(oc.daysUntilBilling, g.daysUntilBilling)
+        let settings = AppSettings.shared
         
-        let img = BatteryGaugeRenderer.renderUnifiedVerticalBars(
-            openCodeRemainingPercent: oc.remainingPercent,
-            openCodeStatus: oc.status,
-            googleRemainingPercent: g.remainingPercent,
-            googleStatus: g.status,
+        if settings.isProviderEnabled("opencode") {
+            let oc = usageManager.openCodeSnapshot
+            gaugeItems.append(.init(percent: oc.remainingPercent, status: oc.status))
+            tooltips.append("· OpenCode Go: \(Int(oc.remainingPercent))% \(L10n.remaining) (\(oc.openCodeWindows.monthlyResetString))")
+            nearestBillingDays = min(nearestBillingDays, oc.daysUntilBilling)
+        }
+        
+        if settings.isProviderEnabled("google_ai") {
+            let g = usageManager.googleAISnapshot
+            gaugeItems.append(.init(percent: g.remainingPercent, status: g.status))
+            tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining) (\(g.googleGroups.nextBillingDateString))")
+            nearestBillingDays = min(nearestBillingDays, g.daysUntilBilling)
+        }
+        
+        if settings.isProviderEnabled("openrouter") {
+            let or = usageManager.openRouterSnapshot
+            let bal = or.balanceUSD
+            let pct = min(100.0, (bal / 10.0) * 100.0) // $10 기준 정규화
+            gaugeItems.append(.init(percent: pct, status: or.status))
+            tooltips.append("· OpenRouter: $\(String(format: "%.2f", bal))")
+        }
+        
+        let img = BatteryGaugeRenderer.renderDynamicBars(
+            items: gaugeItems,
             daysUntilReset: nearestBillingDays
         )
         
         button.image = img
-        button.toolTip = "AI Usages\n· OpenCode Go: \(Int(oc.remainingPercent))% \(L10n.remaining) (\(oc.openCodeWindows.monthlyResetString))\n· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining) (\(g.googleGroups.nextBillingDateString))"
+        button.toolTip = tooltips.joined(separator: "\n")
     }
     
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {

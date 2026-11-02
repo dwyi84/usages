@@ -5,6 +5,7 @@ public struct DetailPopoverView: View {
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject var launchAtLogin = LaunchAtLoginManager.shared
     @ObservedObject var updater = UpdaterViewModel.shared
+    @ObservedObject var uiState = PopoverUIState.shared
     
     private let coffeeURL = URL(string: "https://buymeacoffee.com/dwyi84d")!
     
@@ -23,7 +24,6 @@ public struct DetailPopoverView: View {
                 
                 Spacer()
                 
-                // Update Pill if update is available
                 if updater.updateState == .updateAvailable, let newVer = updater.pendingUpdateVersion {
                     Button(action: {
                         updater.presentUpdateConfirmation()
@@ -56,22 +56,27 @@ public struct DetailPopoverView: View {
             }
             .padding(.horizontal, 14)
             .padding(.top, 12)
-            .padding(.bottom, 8)
+            .padding(.bottom, 6)
+            
+            // MARK: - Top Segmented Tabs: [ 한도 쿼터 ] | [ 토큰 & 비용 ]
+            Picker("", selection: $settings.selectedTabIndex) {
+                Text(L10n.tabQuotas).tag(0)
+                Text(L10n.tabTokenCost).tag(1)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
             
             Divider()
             
-            // MARK: - Usage Sections (Simple & Minimal)
-            VStack(spacing: 12) {
-                // SECTION 1: OpenCode Go
-                OpenCodeSectionView(snapshot: usageManager.openCodeSnapshot)
-                
-                Divider()
-                
-                // SECTION 2: Google AI Pro
-                GoogleAISectionView(snapshot: usageManager.googleAISnapshot)
+            // MARK: - Main Content Area
+            if settings.selectedTabIndex == 0 {
+                // TAB 0: 한도 쿼터 (Quotas)
+                quotasTabView
+            } else {
+                // TAB 1: 토큰 & 비용 (Tokens & Cost)
+                tokenCostTabView
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
             
             Divider()
             
@@ -83,10 +88,10 @@ public struct DetailPopoverView: View {
                         .foregroundColor(.secondary)
                     
                     Picker("", selection: $settings.refreshIntervalSeconds) {
-                        Text(L10n.sec15).tag(15.0)
-                        Text(L10n.sec30).tag(30.0)
                         Text(L10n.min1).tag(60.0)
+                        Text(L10n.min3).tag(180.0)
                         Text(L10n.min5).tag(300.0)
+                        Text(L10n.min15).tag(900.0)
                     }
                     .pickerStyle(.segmented)
                     .controlSize(.mini)
@@ -143,8 +148,263 @@ public struct DetailPopoverView: View {
             .padding(.vertical, 8)
             .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(width: 420)
+        .frame(width: 430)
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear {
+            uiState.openRouterKeyInput = settings.openRouterApiKey
+        }
+    }
+    
+    // MARK: - Quotas Tab View
+    private var quotasTabView: some View {
+        VStack(spacing: 10) {
+            let hasOC = settings.isProviderEnabled("opencode")
+            let hasG = settings.isProviderEnabled("google_ai")
+            
+            if hasOC {
+                OpenCodeSectionView(snapshot: usageManager.openCodeSnapshot)
+            }
+            
+            if hasOC && hasG {
+                Divider()
+            }
+            
+            if hasG {
+                GoogleAISectionView(snapshot: usageManager.googleAISnapshot)
+            }
+            
+            if !hasOC && !hasG {
+                VStack(spacing: 4) {
+                    Text("활성화된 쿼터 프로바이더가 없습니다.")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                    Text("아래 목록에서 사용할 프로바이더를 체크해 주세요.")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(.secondary.opacity(0.8))
+                }
+                .padding(.vertical, 16)
+            }
+            
+            Divider()
+            
+            // 하이브리드 프로바이더 활성화 목록 (체크된 항목 상위 노출, 나머지 후속 리스트업)
+            providerHybridListView
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+    
+    // MARK: - Hybrid Provider List View
+    private var providerHybridListView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(L10n.isKorean ? "프로바이더 활성화 및 관리" : "Provider Activation & Discovery")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        uiState.showProviderSettings.toggle()
+                    }
+                }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: uiState.showProviderSettings ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                        Text(uiState.showProviderSettings ? (L10n.isKorean ? "접기" : "Collapse") : (L10n.isKorean ? "펼치기" : "Manage"))
+                            .font(.system(size: 9.5))
+                    }
+                    .foregroundColor(.accentColor)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if uiState.showProviderSettings {
+                VStack(spacing: 4) {
+                    ForEach(usageManager.registeredProviders) { provider in
+                        HStack(spacing: 8) {
+                            Button(action: {
+                                usageManager.toggleProvider(id: provider.id)
+                            }) {
+                                Image(systemName: provider.isEnabled ? "checkmark.square.fill" : "square")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(provider.isEnabled ? .accentColor : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Text(provider.name)
+                                .font(.system(size: 10.5, weight: provider.isEnabled ? .semibold : .regular))
+                                .foregroundColor(provider.isEnabled ? .primary : .secondary)
+                            
+                            Spacer()
+                            
+                            if provider.isDetected {
+                                Text(L10n.detectedBadge)
+                                    .font(.system(size: 8, weight: .medium))
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Color.green.opacity(0.12))
+                                    .foregroundColor(.green)
+                                    .cornerRadius(3)
+                            } else {
+                                Text(L10n.notDetectedBadge)
+                                    .font(.system(size: 8))
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Color.secondary.opacity(0.10))
+                                    .foregroundColor(.secondary)
+                                    .cornerRadius(3)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .padding(8)
+                .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
+                .cornerRadius(6)
+            }
+        }
+    }
+    
+    // MARK: - Token & Cost Tab View
+    private var tokenCostTabView: some View {
+        VStack(spacing: 12) {
+            let snap = usageManager.openRouterSnapshot
+            
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(L10n.openRouterTitle)
+                        .font(.system(size: 12, weight: .bold))
+                    
+                    Spacer()
+                    
+                    if snap.isConnected {
+                        Text("• Active")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.green)
+                    } else {
+                        Text("• Not Connected")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                if snap.isConnected {
+                    // Balance & Spend Matrix
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.balance)
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                            Text(String(format: "$%.2f", snap.balanceUSD))
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.accentColor)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        Divider().frame(height: 28)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.todaySpend)
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                            Text(String(format: "$%.2f", snap.todaySpendUSD))
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        Divider().frame(height: 28)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.monthSpend)
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                            Text(String(format: "$%.2f", snap.monthSpendUSD))
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(8)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(6)
+                    
+                    // Token Breakdown
+                    HStack {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(L10n.promptTokens)
+                                .font(.system(size: 8.5))
+                                .foregroundColor(.secondary)
+                            Text("\(snap.promptTokens.formatted()) t")
+                                .font(.system(size: 9.5, weight: .medium))
+                        }
+                        Spacer()
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(L10n.completionTokens)
+                                .font(.system(size: 8.5))
+                                .foregroundColor(.secondary)
+                            Text("\(snap.completionTokens.formatted()) t")
+                                .font(.system(size: 9.5, weight: .medium))
+                        }
+                        Spacer()
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(L10n.totalTokens)
+                                .font(.system(size: 8.5))
+                                .foregroundColor(.secondary)
+                            Text("\(snap.totalTokens.formatted()) t")
+                                .font(.system(size: 9.5, weight: .bold))
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                } else {
+                    Text(L10n.noTokenProviders)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .padding(.vertical, 4)
+                }
+            }
+            .padding(10)
+            .background(Color(NSColor.controlBackgroundColor).opacity(0.7))
+            .cornerRadius(6)
+            
+            // Inline API Key Configuration
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.connectKey)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.secondary)
+                
+                HStack(spacing: 6) {
+                    SecureField(L10n.enterOpenRouterKey, text: $uiState.openRouterKeyInput)
+                        .textFieldStyle(.roundedBorder)
+                        .controlSize(.small)
+                    
+                    Button(L10n.save) {
+                        settings.openRouterApiKey = uiState.openRouterKeyInput
+                        settings.setProviderEnabled("openrouter", enabled: !uiState.openRouterKeyInput.isEmpty)
+                        usageManager.reloadProviders()
+                        Task {
+                            await usageManager.refreshAll()
+                        }
+                        uiState.showKeySavedToast = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            uiState.showKeySavedToast = false
+                        }
+                    }
+                    .controlSize(.small)
+                }
+                
+                if uiState.showKeySavedToast {
+                    Text(L10n.isKorean ? "✓ 키가 저장되었습니다." : "✓ API Key saved.")
+                        .font(.system(size: 9))
+                        .foregroundColor(.green)
+                }
+            }
+            .padding(10)
+            .background(Color(NSColor.controlBackgroundColor).opacity(0.4))
+            .cornerRadius(6)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
     
     private func formatTime(_ date: Date) -> String {

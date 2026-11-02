@@ -4,12 +4,35 @@ import SwiftUI
 public enum ServiceType: String, Codable, CaseIterable {
     case openCode = "OpenCode Go"
     case googleAI = "Google AI Pro"
+    case openRouter = "OpenRouter"
+}
+
+public enum ProviderCategory: String, Codable, CaseIterable {
+    case quota = "quota"
+    case tokenAndCost = "tokenAndCost"
+}
+
+public struct ProviderDescriptor: Identifiable, Equatable {
+    public let id: String
+    public let name: String
+    public let category: ProviderCategory
+    public var isDetected: Bool
+    public var isEnabled: Bool
+    
+    public init(id: String, name: String, category: ProviderCategory, isDetected: Bool, isEnabled: Bool) {
+        self.id = id
+        self.name = name
+        self.category = category
+        self.isDetected = isDetected
+        self.isEnabled = isEnabled
+    }
 }
 
 public enum GaugeStatus {
     case normal
     case warning
     case critical
+    case rateLimited
     case error
     case unknown
     
@@ -18,21 +41,22 @@ public enum GaugeStatus {
         case .normal: return Color.green
         case .warning: return Color.orange
         case .critical: return Color.red
+        case .rateLimited: return Color.purple
         case .error: return Color.gray
         case .unknown: return Color.secondary
         }
     }
 }
 
-// MARK: - OpenCode Go Detail Windows (실제 구조: 5h, Weekly, Monthly)
+// MARK: - OpenCode Go Detail Windows (5h, Weekly, Monthly)
 public struct OpenCodeWindows {
-    public var fiveHourRemainingPercent: Double = 95.0   // 5% used -> 95% remaining
+    public var fiveHourRemainingPercent: Double = 95.0
     public var fiveHourResetString: String = "Resets in 3h 37m"
     
-    public var weeklyRemainingPercent: Double = 98.0     // 2% used -> 98% remaining
+    public var weeklyRemainingPercent: Double = 98.0
     public var weeklyResetString: String = "Resets in 6d 15h"
     
-    public var monthlyRemainingPercent: Double = 36.0    // 64% used -> 36% remaining
+    public var monthlyRemainingPercent: Double = 36.0
     public var monthlyResetString: String = "Renews in 6d 13h"
     
     public var nextBillingDateString: String = "6d 13h 후 자동 갱신"
@@ -59,25 +83,21 @@ public struct OpenCodeWindows {
     }
 }
 
-// MARK: - Google AI Pro Detail Groups (실제 구조: Gemini, Claude & GPT, Argon)
+// MARK: - Google AI Pro Detail Groups (Gemini, Claude & GPT, Argon)
 public struct GoogleAIGroupLimits {
-    // 1. GEMINI MODELS (Gemini Flash, Gemini Pro)
     public var geminiWeeklyRemainingPercent: Double = 93.52
     public var geminiWeeklyResetString: String = "Refreshes in 115h 45m"
     public var geminiFiveHourRemainingPercent: Double = 90.73
     public var geminiFiveHourResetString: String = "Refreshes in 3h 56m"
     
-    // 2. CLAUDE AND GPT MODELS (Claude Opus, Claude Sonnet, GPT-OSS)
     public var claudeWeeklyRemainingPercent: Double = 100.0
     public var claudeWeeklyResetString: String = "Quota available"
     public var claudeFiveHourRemainingPercent: Double = 100.0
     public var claudeFiveHourResetString: String = "Quota available"
     
-    // 3. GEMINI 4 ARGON (Argon quota is separate)
     public var argonWeeklyRemainingPercent: Double = 59.25
     public var argonWeeklyResetString: String = "Refreshes in 70h 46m"
     
-    // 종합 잔여율 (메인 툴바 아이콘용: 가장 타이트한 쿼터 반영)
     public var overallRemainingPercent: Double {
         return min(argonWeeklyRemainingPercent, geminiWeeklyRemainingPercent)
     }
@@ -117,7 +137,7 @@ public struct GoogleAIGroupLimits {
 public struct ServiceUsageSnapshot {
     public var service: ServiceType
     public var planName: String
-    public var remainingPercent: Double // 툴바 게이지에 쓸 대표 잔여량 (0~100)
+    public var remainingPercent: Double
     public var usedPercent: Double {
         max(0.0, min(100.0, 100.0 - remainingPercent))
     }
@@ -125,8 +145,8 @@ public struct ServiceUsageSnapshot {
     public var daysUntilBilling: Int
     public var status: GaugeStatus
     public var lastUpdated: Date
+    public var isAvailable: Bool
     
-    // Windows & Categories
     public var openCodeWindows: OpenCodeWindows
     public var googleGroups: GoogleAIGroupLimits
     
@@ -138,6 +158,7 @@ public struct ServiceUsageSnapshot {
         daysUntilBilling: Int = 6,
         status: GaugeStatus = .normal,
         lastUpdated: Date = Date(),
+        isAvailable: Bool = true,
         openCodeWindows: OpenCodeWindows = OpenCodeWindows(),
         googleGroups: GoogleAIGroupLimits = GoogleAIGroupLimits()
     ) {
@@ -148,20 +169,112 @@ public struct ServiceUsageSnapshot {
         self.daysUntilBilling = daysUntilBilling
         self.status = status
         self.lastUpdated = lastUpdated
+        self.isAvailable = isAvailable
         self.openCodeWindows = openCodeWindows
         self.googleGroups = googleGroups
     }
+}
+
+// MARK: - Token & Cost Snapshot (OpenRouter, OpenAI, etc.)
+public struct TokenCostSnapshot {
+    public var providerId: String
+    public var providerName: String
+    public var balanceUSD: Double
+    public var todaySpendUSD: Double
+    public var monthSpendUSD: Double
+    public var totalTokens: Int
+    public var promptTokens: Int
+    public var completionTokens: Int
+    public var cachedTokens: Int
+    public var requestsCount: Int
+    public var status: GaugeStatus
+    public var lastUpdated: Date
+    public var isConnected: Bool
+    
+    public init(
+        providerId: String = "openrouter",
+        providerName: String = "OpenRouter",
+        balanceUSD: Double = 0.0,
+        todaySpendUSD: Double = 0.0,
+        monthSpendUSD: Double = 0.0,
+        totalTokens: Int = 0,
+        promptTokens: Int = 0,
+        completionTokens: Int = 0,
+        cachedTokens: Int = 0,
+        requestsCount: Int = 0,
+        status: GaugeStatus = .normal,
+        lastUpdated: Date = Date(),
+        isConnected: Bool = false
+    ) {
+        self.providerId = providerId
+        self.providerName = providerName
+        self.balanceUSD = balanceUSD
+        self.todaySpendUSD = todaySpendUSD
+        self.monthSpendUSD = monthSpendUSD
+        self.totalTokens = totalTokens
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+        self.cachedTokens = cachedTokens
+        self.requestsCount = requestsCount
+        self.status = status
+        self.lastUpdated = lastUpdated
+        self.isConnected = isConnected
+    }
+}
+
+@MainActor
+public final class PopoverUIState: ObservableObject {
+    public static let shared = PopoverUIState()
+    @Published public var showProviderSettings = false
+    @Published public var openRouterKeyInput = ""
+    @Published public var showKeySavedToast = false
 }
 
 public final class AppSettings: ObservableObject {
     public static let shared = AppSettings()
     private let defaults = UserDefaults.standard
     
+    // 안전한 갱신 주기: 기본 5분(300초), 1분/3분/5분/15분 지원
     @Published public var refreshIntervalSeconds: Double {
         didSet { defaults.set(refreshIntervalSeconds, forKey: "refreshIntervalSeconds") }
     }
     
+    @Published public var enabledProviderIds: Set<String> {
+        didSet { defaults.set(Array(enabledProviderIds), forKey: "enabledProviderIds") }
+    }
+    
+    @Published public var selectedTabIndex: Int {
+        didSet { defaults.set(selectedTabIndex, forKey: "selectedTabIndex") }
+    }
+    
+    @Published public var openRouterApiKey: String {
+        didSet { defaults.set(openRouterApiKey, forKey: "openRouterApiKey") }
+    }
+    
     private init() {
-        self.refreshIntervalSeconds = defaults.double(forKey: "refreshIntervalSeconds") > 0 ? defaults.double(forKey: "refreshIntervalSeconds") : 30.0
+        let savedInterval = defaults.double(forKey: "refreshIntervalSeconds")
+        self.refreshIntervalSeconds = savedInterval >= 60.0 ? savedInterval : 300.0 // 기본 5분
+        
+        if let savedIds = defaults.stringArray(forKey: "enabledProviderIds") {
+            self.enabledProviderIds = Set(savedIds)
+        } else {
+            // 기본값: OpenCode 및 Google AI 활성화
+            self.enabledProviderIds = ["opencode", "google_ai"]
+        }
+        
+        self.selectedTabIndex = defaults.integer(forKey: "selectedTabIndex")
+        self.openRouterApiKey = defaults.string(forKey: "openRouterApiKey") ?? ""
+    }
+    
+    public func isProviderEnabled(_ id: String) -> Bool {
+        enabledProviderIds.contains(id)
+    }
+    
+    public func setProviderEnabled(_ id: String, enabled: Bool) {
+        if enabled {
+            enabledProviderIds.insert(id)
+        } else {
+            enabledProviderIds.remove(id)
+        }
     }
 }
