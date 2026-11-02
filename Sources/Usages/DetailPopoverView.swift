@@ -128,12 +128,18 @@ struct OpenCodeSectionView: View {
                 
                 Spacer()
                 
-                // 구독료 결제일 / 만료일 뱃지
+                // 구독료 결제일 / 만료일 뱃지 (자동 감지 안내)
                 HStack(spacing: 4) {
                     Image(systemName: "creditcard")
                         .font(.system(size: 9.5))
                     Text("구독 갱신: \(snapshot.billingDateString) (D-\(snapshot.daysUntilBilling))")
                         .font(.system(size: 10, weight: .semibold))
+                    Text("자동")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .padding(.horizontal, 3.5)
+                        .padding(.vertical, 1)
+                        .background(Color.blue.opacity(0.2))
+                        .cornerRadius(3)
                 }
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3.5)
