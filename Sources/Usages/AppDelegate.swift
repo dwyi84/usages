@@ -59,7 +59,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         
         button.image = img
-        button.toolTip = "AI Usages\n· OpenCode Go: \(Int(oc.remainingPercent))% 남음 (Renews in 6d 13h)\n· Google AI Pro: \(Int(g.remainingPercent))% 남음 (Renews in 6d 13h)\n클릭하여 상세 보기"
+        button.toolTip = "AI Usages\n· OpenCode Go: \(Int(oc.remainingPercent))% 남음 (\(oc.openCodeWindows.monthlyResetString))\n· Google AI Pro: \(Int(g.remainingPercent))% 남음 (\(g.googleGroups.nextBillingDateString))\n클릭하여 상세 보기"
     }
     
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
@@ -84,7 +84,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "AI Usages 새로고침", action: #selector(refreshClicked), keyEquivalent: "r"))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Usages 종료", action: #selector(quitApp), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "AI Usages 종료", action: #selector(quitApp), keyEquivalent: "q"))
         
         sender.menu = menu
         sender.performClick(nil)

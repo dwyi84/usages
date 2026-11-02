@@ -2,19 +2,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "Usages",
+    name: "AIUsages",
     platforms: [
         .macOS(.v13)
     ],
     products: [
         .executable(
-            name: "Usages",
-            targets: ["Usages"]
+            name: "AIUsages",
+            targets: ["AIUsages"]
         )
     ],
     targets: [
         .executableTarget(
-            name: "Usages",
+            name: "AIUsages",
             path: "Sources/Usages",
             swiftSettings: [
                 .swiftLanguageMode(.v5)
