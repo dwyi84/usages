@@ -23,7 +23,7 @@ public struct L10n {
     public static var notDetectedBadge: String { isKorean ? "미설치" : "Not Detected" }
     
     // Services
-    public static var openCodeTitle: String { "Go Subscription" }
+    public static var openCodeTitle: String { "OpenCode Go" }
     public static var googleAITitle: String { "Google AI Pro" }
     public static var openRouterTitle: String { "OpenRouter" }
     

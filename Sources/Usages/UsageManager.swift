@@ -26,54 +26,73 @@ public final class UsageManager: ObservableObject {
     public func reloadProviders() {
         let settings = AppSettings.shared
         
-        let ocDetected = OpenCodeProvider.shared.isAvailable
-        let gDetected = GoogleAIProvider.shared.isAvailable
-        let orDetected = OpenRouterProvider.shared.isAvailable
-        
         let all: [ProviderDescriptor] = [
             ProviderDescriptor(
-                id: "opencode",
-                name: "OpenCode Go",
-                category: .quota,
-                isDetected: ocDetected,
-                isEnabled: settings.isProviderEnabled("opencode")
-            ),
-            ProviderDescriptor(
-                id: "google_ai",
-                name: "Google AI Pro",
-                category: .quota,
-                isDetected: gDetected,
-                isEnabled: settings.isProviderEnabled("google_ai")
-            ),
-            ProviderDescriptor(
-                id: "openrouter",
-                name: "OpenRouter (API)",
+                id: "codex",
+                name: "Codex",
                 category: .tokenAndCost,
-                isDetected: orDetected,
-                isEnabled: settings.isProviderEnabled("openrouter")
+                isDetected: ProviderDetector.isDetected(id: "codex"),
+                isEnabled: settings.isProviderEnabled("codex")
             ),
             ProviderDescriptor(
                 id: "claude",
-                name: "Claude (Anthropic)",
+                name: "Claude",
                 category: .quota,
-                isDetected: false,
+                isDetected: ProviderDetector.isDetected(id: "claude"),
                 isEnabled: settings.isProviderEnabled("claude")
             ),
             ProviderDescriptor(
                 id: "cursor",
                 name: "Cursor",
                 category: .quota,
-                isDetected: false,
+                isDetected: ProviderDetector.isDetected(id: "cursor"),
                 isEnabled: settings.isProviderEnabled("cursor")
+            ),
+            ProviderDescriptor(
+                id: "google_ai",
+                name: "Google AI",
+                category: .quota,
+                isDetected: ProviderDetector.isDetected(id: "google_ai"),
+                isEnabled: settings.isProviderEnabled("google_ai")
+            ),
+            ProviderDescriptor(
+                id: "opencode",
+                name: "OpenCode Go",
+                category: .quota,
+                isDetected: ProviderDetector.isDetected(id: "opencode"),
+                isEnabled: settings.isProviderEnabled("opencode")
+            ),
+            ProviderDescriptor(
+                id: "openrouter",
+                name: "OpenRouter",
+                category: .tokenAndCost,
+                isDetected: ProviderDetector.isDetected(id: "openrouter"),
+                isEnabled: settings.isProviderEnabled("openrouter")
+            ),
+            ProviderDescriptor(
+                id: "copilot",
+                name: "Copilot",
+                category: .quota,
+                isDetected: ProviderDetector.isDetected(id: "copilot"),
+                isEnabled: settings.isProviderEnabled("copilot")
+            ),
+            ProviderDescriptor(
+                id: "perplexity",
+                name: "Perplexity",
+                category: .tokenAndCost,
+                isDetected: ProviderDetector.isDetected(id: "perplexity"),
+                isEnabled: settings.isProviderEnabled("perplexity")
+            ),
+            ProviderDescriptor(
+                id: "deepseek",
+                name: "DeepSeek",
+                category: .tokenAndCost,
+                isDetected: ProviderDetector.isDetected(id: "deepseek"),
+                isEnabled: settings.isProviderEnabled("deepseek")
             )
         ]
         
-        // 1. 사용으로 체크된 프로바이더를 상위에 노출
-        let enabledList = all.filter { $0.isEnabled }
-        // 2. 나머지는 이어서 리스트업
-        let disabledList = all.filter { !$0.isEnabled }
-        
-        self.registeredProviders = enabledList + disabledList
+        self.registeredProviders = all
     }
     
     public func toggleProvider(id: String) {

@@ -21,6 +21,6 @@ cp -R "$DIR/build/AI Usages.app" "$TARGET_APP"
 xattr -dr com.apple.quarantine "$TARGET_APP" 2>/dev/null || true
 
 echo "==> Launching installed app from /Applications..."
-open "$TARGET_APP"
+open "$TARGET_APP" 2>/dev/null || open -a "$TARGET_APP" 2>/dev/null || ("$TARGET_APP/Contents/MacOS/AIUsages" >/dev/null 2>&1 &)
 
 echo "==> Installation complete! AI Usages is now installed in /Applications and active in your menu bar."

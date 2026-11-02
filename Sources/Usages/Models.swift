@@ -5,27 +5,31 @@ import Security
 // MARK: - Native macOS Keychain Helper for Secure Credentials
 public final class KeychainHelper {
     public static let shared = KeychainHelper()
-    private let service = "com.melissasoft.aiusages"
-    private let account = "openrouter_api_key"
+    private let defaultService = "com.melissasoft.aiusages"
+    private let defaultAccount = "openrouter_api_key"
     
-    public func save(key: String) {
+    public func save(key: String, service: String? = nil, account: String? = nil) {
         guard let data = key.data(using: .utf8) else { return }
-        delete()
+        delete(service: service, account: account)
+        let svc = service ?? defaultService
+        let acc = account ?? defaultAccount
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrService as String: svc,
+            kSecAttrAccount as String: acc,
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
         SecItemAdd(query as CFDictionary, nil)
     }
     
-    public func read() -> String? {
+    public func read(service: String? = nil, account: String? = nil) -> String? {
+        let svc = service ?? defaultService
+        let acc = account ?? defaultAccount
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrService as String: svc,
+            kSecAttrAccount as String: acc,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -38,11 +42,13 @@ public final class KeychainHelper {
         return nil
     }
     
-    public func delete() {
+    public func delete(service: String? = nil, account: String? = nil) {
+        let svc = service ?? defaultService
+        let acc = account ?? defaultAccount
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrService as String: svc,
+            kSecAttrAccount as String: acc
         ]
         SecItemDelete(query as CFDictionary)
     }
@@ -52,6 +58,63 @@ public enum ServiceType: String, Codable, CaseIterable {
     case openCode = "OpenCode Go"
     case googleAI = "Google AI Pro"
     case openRouter = "OpenRouter"
+    case codex = "Codex"
+    case claude = "Claude"
+    case cursor = "Cursor"
+    case copilot = "Copilot"
+    case perplexity = "Perplexity"
+    case deepseek = "DeepSeek"
+}
+
+public struct ProviderDetector {
+    public static func isDetected(id: String) -> Bool {
+        switch id {
+        case "opencode":
+            return OpenCodeProvider.shared.isAvailable
+        case "google_ai":
+            return GoogleAIProvider.shared.isAvailable
+        case "openrouter":
+            if let k = KeychainHelper.shared.read(), !k.isEmpty { return true }
+            if let legacy = UserDefaults.standard.string(forKey: "openRouterApiKey"), !legacy.isEmpty { return true }
+            return false
+        case "codex":
+            if let k = KeychainHelper.shared.read(account: "codex_api_key"), !k.isEmpty { return true }
+            if ProcessInfo.processInfo.environment["OPENAI_API_KEY"] != nil { return true }
+            let codexPath = ("~/.codex" as NSString).expandingTildeInPath
+            let openaiPath = ("~/.openai" as NSString).expandingTildeInPath
+            return FileManager.default.fileExists(atPath: codexPath) || FileManager.default.fileExists(atPath: openaiPath)
+        case "claude":
+            if let k = KeychainHelper.shared.read(account: "claude_api_key"), !k.isEmpty { return true }
+            if ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] != nil { return true }
+            let anthropicPath = ("~/.anthropic" as NSString).expandingTildeInPath
+            let claudeAppPath = "/Applications/Claude.app"
+            let userClaudeAppPath = ("~/Applications/Claude.app" as NSString).expandingTildeInPath
+            return FileManager.default.fileExists(atPath: anthropicPath)
+                || FileManager.default.fileExists(atPath: claudeAppPath)
+                || FileManager.default.fileExists(atPath: userClaudeAppPath)
+        case "cursor":
+            let app1 = "/Applications/Cursor.app"
+            let app2 = ("~/Applications/Cursor.app" as NSString).expandingTildeInPath
+            let conf1 = ("~/.cursor" as NSString).expandingTildeInPath
+            let conf2 = ("~/Library/Application Support/Cursor" as NSString).expandingTildeInPath
+            return FileManager.default.fileExists(atPath: app1)
+                || FileManager.default.fileExists(atPath: app2)
+                || FileManager.default.fileExists(atPath: conf1)
+                || FileManager.default.fileExists(atPath: conf2)
+        case "copilot":
+            let c1 = ("~/.config/github-copilot" as NSString).expandingTildeInPath
+            let c2 = ("~/Library/Application Support/github-copilot" as NSString).expandingTildeInPath
+            return FileManager.default.fileExists(atPath: c1) || FileManager.default.fileExists(atPath: c2)
+        case "perplexity":
+            if let k = KeychainHelper.shared.read(account: "perplexity_api_key"), !k.isEmpty { return true }
+            return ProcessInfo.processInfo.environment["PERPLEXITY_API_KEY"] != nil
+        case "deepseek":
+            if let k = KeychainHelper.shared.read(account: "deepseek_api_key"), !k.isEmpty { return true }
+            return ProcessInfo.processInfo.environment["DEEPSEEK_API_KEY"] != nil
+        default:
+            return false
+        }
+    }
 }
 
 public enum ProviderCategory: String, Codable, CaseIterable {
@@ -356,6 +419,10 @@ public final class PopoverUIState: ObservableObject {
     @Published public var isEditingGoogleBillingDay = false
     @Published public var selectedBillingDay = 1
     
+    // Generic provider key input
+    @Published public var genericKeyInput: String = ""
+    @Published public var editingProviderKeyId: String? = nil
+    
     // Detailed Trend Popover state
     @Published public var selectedTrendTitle: String = ""
     @Published public var selectedTrendSummary: UsageTrendSummary? = nil
@@ -415,43 +482,70 @@ public final class AppSettings: ObservableObject {
         didSet { defaults.set(googleBillingDayOfMonth, forKey: "googleBillingDayOfMonth") }
     }
     
+    public static let defaultPopularityOrder = [
+        "codex",
+        "claude",
+        "cursor",
+        "google_ai",
+        "opencode",
+        "openrouter",
+        "copilot",
+        "perplexity",
+        "deepseek"
+    ]
+    
+    public func saveKey(id: String, key: String) {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            KeychainHelper.shared.delete(account: "\(id)_api_key")
+        } else {
+            KeychainHelper.shared.save(key: trimmed, account: "\(id)_api_key")
+        }
+        setProviderEnabled(id, enabled: !trimmed.isEmpty)
+        objectWillChange.send()
+    }
+    
+    public func deleteKey(id: String) {
+        KeychainHelper.shared.delete(account: "\(id)_api_key")
+        setProviderEnabled(id, enabled: false)
+        objectWillChange.send()
+    }
+    
+    public func hasKey(id: String) -> Bool {
+        guard let k = KeychainHelper.shared.read(account: "\(id)_api_key") else { return false }
+        return !k.isEmpty
+    }
+    
     private init() {
         let savedInterval = defaults.double(forKey: "refreshIntervalSeconds")
         self.refreshIntervalSeconds = savedInterval >= 60.0 ? savedInterval : 300.0 // 기본 5분
         
-        if let savedIds = defaults.stringArray(forKey: "enabledProviderIds") {
-            self.enabledProviderIds = Set(savedIds)
-        } else {
-            // 최초 실행 시: 실제 로컬에 설치/감지된 프로바이더만 활성화 (미설치 상태 시 임의 활성화 방지)
+        let hasInitialized = defaults.bool(forKey: "hasInitializedProviders_v3")
+        if !hasInitialized {
+            // 최초 실행 시: 어떤 구독플랜 카드도 기본으로 주어지지 않음. 오직 실제 자동감지된 프로바이더만 추가
             var detected: Set<String> = []
-            if OpenCodeProvider.shared.isAvailable {
-                detected.insert("opencode")
-            }
-            if GoogleAIProvider.shared.isAvailable {
-                detected.insert("google_ai")
-            }
-            if let k = KeychainHelper.shared.read(), !k.isEmpty {
-                detected.insert("openrouter")
+            for pid in Self.defaultPopularityOrder {
+                if ProviderDetector.isDetected(id: pid) {
+                    detected.insert(pid)
+                }
             }
             self.enabledProviderIds = detected
+            defaults.set(Array(detected), forKey: "enabledProviderIds")
+            defaults.set(true, forKey: "hasInitializedProviders_v3")
+        } else if let savedIds = defaults.stringArray(forKey: "enabledProviderIds") {
+            self.enabledProviderIds = Set(savedIds)
+        } else {
+            self.enabledProviderIds = []
         }
         
-        let defaultOrder = ["opencode", "google_ai", "openrouter"]
         if let savedOrder = defaults.stringArray(forKey: "providerOrder"), !savedOrder.isEmpty {
             var merged = savedOrder
-            for def in defaultOrder where !merged.contains(def) {
+            for def in Self.defaultPopularityOrder where !merged.contains(def) {
                 merged.append(def)
             }
             self.providerOrder = merged
         } else {
-            let detected = defaultOrder.filter { id in
-                if id == "opencode" { return OpenCodeProvider.shared.isAvailable }
-                if id == "google_ai" { return GoogleAIProvider.shared.isAvailable }
-                if id == "openrouter" { return KeychainHelper.shared.read() != nil }
-                return false
-            }
-            let notDetected = defaultOrder.filter { !detected.contains($0) }
-            self.providerOrder = detected + notDetected
+            self.providerOrder = Self.defaultPopularityOrder
         }
         
         self.selectedTabIndex = defaults.integer(forKey: "selectedTabIndex")

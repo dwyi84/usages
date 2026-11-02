@@ -116,12 +116,54 @@ public struct DetailPopoverView: View {
                 } else {
                     ForEach(activeOrder, id: \.self) { id in
                         switch id {
-                        case "opencode":
-                            OpenCodeSectionView(snapshot: usageManager.openCodeSnapshot)
+                        case "codex":
+                            GenericAISectionView(
+                                providerId: "codex",
+                                providerName: "Codex",
+                                envKeyName: "OPENAI_API_KEY",
+                                keyPrefix: "sk-",
+                                isDetected: ProviderDetector.isDetected(id: "codex")
+                            )
+                        case "claude":
+                            GenericAISectionView(
+                                providerId: "claude",
+                                providerName: "Claude",
+                                envKeyName: "ANTHROPIC_API_KEY",
+                                keyPrefix: "sk-ant-",
+                                isDetected: ProviderDetector.isDetected(id: "claude")
+                            )
+                        case "cursor":
+                            CursorSectionView()
                         case "google_ai":
                             GoogleAISectionView(snapshot: usageManager.googleAISnapshot)
+                        case "opencode":
+                            OpenCodeSectionView(snapshot: usageManager.openCodeSnapshot)
                         case "openrouter":
                             OpenRouterSectionView(snapshot: usageManager.openRouterSnapshot)
+                        case "copilot":
+                            GenericAISectionView(
+                                providerId: "copilot",
+                                providerName: "Copilot",
+                                envKeyName: "GITHUB_TOKEN",
+                                keyPrefix: "ghp_",
+                                isDetected: ProviderDetector.isDetected(id: "copilot")
+                            )
+                        case "perplexity":
+                            GenericAISectionView(
+                                providerId: "perplexity",
+                                providerName: "Perplexity",
+                                envKeyName: "PERPLEXITY_API_KEY",
+                                keyPrefix: "pplx-",
+                                isDetected: ProviderDetector.isDetected(id: "perplexity")
+                            )
+                        case "deepseek":
+                            GenericAISectionView(
+                                providerId: "deepseek",
+                                providerName: "DeepSeek",
+                                envKeyName: "DEEPSEEK_API_KEY",
+                                keyPrefix: "sk-",
+                                isDetected: ProviderDetector.isDetected(id: "deepseek")
+                            )
                         default:
                             EmptyView()
                         }
@@ -183,7 +225,7 @@ public struct DetailPopoverView: View {
         }
     }
     
-    // MARK: - Hybrid Provider List View
+    // MARK: - Hybrid Provider List View (3*3 Grid with Toggle Switches)
     private var providerHybridListView: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -210,43 +252,15 @@ public struct DetailPopoverView: View {
             }
             
             if uiState.showProviderSettings {
-                VStack(spacing: 4) {
+                let columns = [
+                    GridItem(.flexible(), spacing: 6),
+                    GridItem(.flexible(), spacing: 6),
+                    GridItem(.flexible(), spacing: 6)
+                ]
+                
+                LazyVGrid(columns: columns, spacing: 6) {
                     ForEach(usageManager.registeredProviders) { provider in
-                        HStack(spacing: 8) {
-                            Button(action: {
-                                usageManager.toggleProvider(id: provider.id)
-                            }) {
-                                Image(systemName: provider.isEnabled ? "checkmark.square.fill" : "square")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(provider.isEnabled ? .accentColor : .secondary)
-                            }
-                            .buttonStyle(.plain)
-                            
-                            Text(provider.name)
-                                .font(.system(size: 10.5, weight: provider.isEnabled ? .semibold : .regular))
-                                .foregroundColor(provider.isEnabled ? .primary : .secondary)
-                            
-                            Spacer()
-                            
-                            if provider.isDetected {
-                                Text(L10n.detectedBadge)
-                                    .font(.system(size: 8, weight: .medium))
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1)
-                                    .background(Color.green.opacity(0.12))
-                                    .foregroundColor(.green)
-                                    .cornerRadius(3)
-                            } else {
-                                Text(L10n.notDetectedBadge)
-                                    .font(.system(size: 8))
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1)
-                                    .background(Color.secondary.opacity(0.10))
-                                    .foregroundColor(.secondary)
-                                    .cornerRadius(3)
-                            }
-                        }
-                        .padding(.vertical, 2)
+                        ProviderGridTile(provider: provider)
                     }
                 }
                 .padding(8)
@@ -1218,5 +1232,478 @@ struct CleanProgressBar: View {
                 Spacer()
             }
         }
+    }
+}
+
+// MARK: - Provider Grid Tile (Compact 3*3 Switch Layout)
+struct ProviderGridTile: View {
+    let provider: ProviderDescriptor
+    @ObservedObject var settings = AppSettings.shared
+    @ObservedObject var usageManager = UsageManager.shared
+    
+    var isEnabled: Bool {
+        settings.isProviderEnabled(provider.id)
+    }
+    
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(provider.isDetected ? Color.green : Color.secondary.opacity(0.35))
+                .frame(width: 5.5, height: 5.5)
+                .help(provider.isDetected ? L10n.detectedBadge : L10n.notDetectedBadge)
+            
+            Text(provider.name)
+                .font(.system(size: 9.5, weight: isEnabled ? .semibold : .regular))
+                .foregroundColor(isEnabled ? .primary : .secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            
+            Spacer(minLength: 2)
+            
+            Toggle("", isOn: Binding(
+                get: { self.isEnabled },
+                set: { _ in
+                    usageManager.toggleProvider(id: provider.id)
+                }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .labelsHidden()
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(isEnabled ? Color.accentColor.opacity(0.08) : Color(NSColor.controlBackgroundColor).opacity(0.4))
+        .cornerRadius(5)
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(isEnabled ? Color.accentColor.opacity(0.25) : Color(NSColor.separatorColor).opacity(0.15), lineWidth: 0.5)
+        )
+    }
+}
+
+// MARK: - Generic AI Provider Section View (Codex, Claude, Copilot, Perplexity, DeepSeek)
+struct GenericAISectionView: View {
+    let providerId: String
+    let providerName: String
+    let envKeyName: String
+    let keyPrefix: String
+    let isDetected: Bool
+    
+    @ObservedObject var uiState = PopoverUIState.shared
+    @ObservedObject var settings = AppSettings.shared
+    @ObservedObject var usageManager = UsageManager.shared
+    
+    var hasKey: Bool {
+        settings.hasKey(id: providerId)
+    }
+    
+    var isEditing: Bool {
+        uiState.editingProviderKeyId == providerId || (!hasKey && !isDetected)
+    }
+    
+    var trend: UsageTrendSummary {
+        UsageTrendSummary(
+            todaySpendUSD: 0.0,
+            todayTokens: 0,
+            yesterdaySpendUSD: 0.0,
+            yesterdayTokens: 0,
+            last30DaysSpendUSD: 0.0,
+            last30DaysTokens: 0,
+            dailyBars: Array(repeating: 0.05, count: 30),
+            dailyPoints: [],
+            dailyAvgSpendUSD: 0.0,
+            dailyAvgTokens: 0,
+            peakDateLabel: "",
+            peakTokens: 0,
+            recentActivityLog: (isDetected || hasKey) ? (L10n.isKorean ? "세션 연결됨 · 활동 대기" : "Session Connected · Ready") : (L10n.isKorean ? "API 연동 필요" : "Setup Required")
+        )
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Card Header
+            HStack(spacing: 6) {
+                HStack(spacing: 2) {
+                    Button(action: { settings.moveProviderUp(id: providerId) }) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(settings.providerOrder.first != providerId ? .primary : .secondary.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(settings.providerOrder.first == providerId)
+                    .help(L10n.moveUp)
+                    
+                    Button(action: { settings.moveProviderDown(id: providerId) }) {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(settings.providerOrder.last != providerId ? .primary : .secondary.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(settings.providerOrder.last == providerId)
+                    .help(L10n.moveDown)
+                }
+                
+                Text(providerName)
+                    .font(.system(size: 12, weight: .bold))
+                
+                Spacer()
+                
+                if hasKey || isDetected {
+                    Text("• " + (L10n.isKorean ? "연동됨" : "Active"))
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundColor(.green)
+                } else {
+                    Text("• " + (L10n.isKorean ? "키 미설정" : "Key Not Set"))
+                        .font(.system(size: 9.5))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // 2-Column Split: Left Status & Key Config / Right Trend
+            HStack(alignment: .top, spacing: 10) {
+                // Left Column: Status & Write-only Key input
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.isKorean ? "연동 상태" : "Status")
+                                .font(.system(size: 8.5))
+                                .foregroundColor(.secondary)
+                            Text(hasKey ? (L10n.isKorean ? "API 키 연동" : "API Key Linked") : (isDetected ? (L10n.isKorean ? "환경변수/로컬 감지" : "Detected Locally") : (L10n.isKorean ? "미설정" : "Not Linked")))
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(hasKey || isDetected ? .primary : .secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        if hasKey || isDetected {
+                            Text(L10n.isKorean ? "✓ 정상" : "✓ OK")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.green)
+                        } else {
+                            Text(L10n.isKorean ? "키 등록 필요" : "Setup Required")
+                                .font(.system(size: 9))
+                                .foregroundColor(.orange)
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    // Key Configuration
+                    if isEditing {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(L10n.isKorean ? "API 키 입력 (\(envKeyName))" : "Enter API Key (\(envKeyName))")
+                                    .font(.system(size: 8.5))
+                                    .foregroundColor(.secondary)
+                                
+                                Spacer()
+                                
+                                if hasKey {
+                                    Button(L10n.deleteKey) {
+                                        settings.deleteKey(id: providerId)
+                                        uiState.genericKeyInput = ""
+                                        uiState.editingProviderKeyId = nil
+                                        usageManager.reloadProviders()
+                                    }
+                                    .font(.system(size: 8.5))
+                                    .foregroundColor(.red.opacity(0.85))
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            
+                            HStack(spacing: 4) {
+                                TextField(keyPrefix + "...", text: $uiState.genericKeyInput)
+                                    .textFieldStyle(.roundedBorder)
+                                    .controlSize(.small)
+                                
+                                Button(L10n.save) {
+                                    let cleaned = uiState.genericKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if !cleaned.isEmpty {
+                                        settings.saveKey(id: providerId, key: cleaned)
+                                    }
+                                    uiState.genericKeyInput = ""
+                                    uiState.editingProviderKeyId = nil
+                                    usageManager.reloadProviders()
+                                }
+                                .controlSize(.small)
+                                .disabled(uiState.genericKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                
+                                if hasKey || isDetected {
+                                    Button(action: {
+                                        uiState.genericKeyInput = ""
+                                        uiState.editingProviderKeyId = nil
+                                    }) {
+                                        Text("✕")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    } else {
+                        // Key is registered - secure write-only presentation
+                        HStack {
+                            Label(L10n.isKorean ? "API Key 안전 등록됨" : "API Key Securely Stored", systemImage: "checkmark.shield.fill")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.green)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                uiState.genericKeyInput = ""
+                                uiState.editingProviderKeyId = providerId
+                            }) {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 8))
+                                    Text(L10n.isKorean ? "새 키 등록" : "Update")
+                                        .font(.system(size: 9))
+                                }
+                                .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                            .help(L10n.isKorean ? "기존 키는 노출되지 않으며 새 키로 안전하게 대체됩니다" : "Safely overwrite with a new key")
+                        }
+                    }
+                    
+                    Spacer(minLength: 0)
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(6)
+                
+                // Right Column: Usage Trend View
+                ProviderTrendView(title: providerName, trend: trend)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(10)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 0.5)
+        )
+    }
+}
+
+// MARK: - Cursor Section View
+struct CursorSectionView: View {
+    @ObservedObject var uiState = PopoverUIState.shared
+    @ObservedObject var settings = AppSettings.shared
+    @ObservedObject var usageManager = UsageManager.shared
+    
+    var isDetected: Bool {
+        ProviderDetector.isDetected(id: "cursor")
+    }
+    
+    var hasKey: Bool {
+        settings.hasKey(id: "cursor")
+    }
+    
+    var isEditing: Bool {
+        uiState.editingProviderKeyId == "cursor"
+    }
+    
+    var trend: UsageTrendSummary {
+        UsageTrendSummary(
+            todaySpendUSD: 0.0,
+            todayTokens: 0,
+            yesterdaySpendUSD: 0.0,
+            yesterdayTokens: 0,
+            last30DaysSpendUSD: 0.0,
+            last30DaysTokens: 0,
+            dailyBars: Array(repeating: 0.05, count: 30),
+            dailyPoints: [],
+            dailyAvgSpendUSD: 0.0,
+            dailyAvgTokens: 0,
+            peakDateLabel: "",
+            peakTokens: 0,
+            recentActivityLog: isDetected ? (L10n.isKorean ? "Cursor.app 로컬 설치 감지됨" : "Cursor.app Installed") : (L10n.isKorean ? "Cursor 미설치" : "Cursor Not Installed")
+        )
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Card Header
+            HStack(spacing: 6) {
+                HStack(spacing: 2) {
+                    Button(action: { settings.moveProviderUp(id: "cursor") }) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(settings.providerOrder.first != "cursor" ? .primary : .secondary.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(settings.providerOrder.first == "cursor")
+                    .help(L10n.moveUp)
+                    
+                    Button(action: { settings.moveProviderDown(id: "cursor") }) {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(settings.providerOrder.last != "cursor" ? .primary : .secondary.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(settings.providerOrder.last == "cursor")
+                    .help(L10n.moveDown)
+                }
+                
+                Text("Cursor")
+                    .font(.system(size: 12, weight: .bold))
+                
+                Spacer()
+                
+                if isDetected || hasKey {
+                    Text("• " + (L10n.isKorean ? "감지됨" : "Detected"))
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundColor(.green)
+                } else {
+                    Text("• " + (L10n.isKorean ? "미설치" : "Not Installed"))
+                        .font(.system(size: 9.5))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // 2-Column Split: Left IDE Info & Token / Right Trend
+            HStack(alignment: .top, spacing: 10) {
+                // Left Column
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.isKorean ? "IDE 상태" : "IDE Status")
+                                .font(.system(size: 8.5))
+                                .foregroundColor(.secondary)
+                            Text(isDetected ? (L10n.isKorean ? "Cursor 활성화" : "Cursor Active") : (L10n.isKorean ? "Cursor 미설치" : "Not Found"))
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(isDetected ? .primary : .secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        if isDetected {
+                            Text(L10n.isKorean ? "✓ 설치됨" : "✓ Installed")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.green)
+                        } else {
+                            Text(L10n.isKorean ? "미감지" : "Missing")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    if isEditing {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(L10n.isKorean ? "Cursor 토큰 입력 (선택사항)" : "Cursor Token (Optional)")
+                                    .font(.system(size: 8.5))
+                                    .foregroundColor(.secondary)
+                                
+                                Spacer()
+                                
+                                if hasKey {
+                                    Button(L10n.deleteKey) {
+                                        settings.deleteKey(id: "cursor")
+                                        uiState.genericKeyInput = ""
+                                        uiState.editingProviderKeyId = nil
+                                        usageManager.reloadProviders()
+                                    }
+                                    .font(.system(size: 8.5))
+                                    .foregroundColor(.red.opacity(0.85))
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            
+                            HStack(spacing: 4) {
+                                TextField("token...", text: $uiState.genericKeyInput)
+                                    .textFieldStyle(.roundedBorder)
+                                    .controlSize(.small)
+                                
+                                Button(L10n.save) {
+                                    let cleaned = uiState.genericKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if !cleaned.isEmpty {
+                                        settings.saveKey(id: "cursor", key: cleaned)
+                                    }
+                                    uiState.genericKeyInput = ""
+                                    uiState.editingProviderKeyId = nil
+                                    usageManager.reloadProviders()
+                                }
+                                .controlSize(.small)
+                                .disabled(uiState.genericKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                
+                                Button(action: {
+                                    uiState.genericKeyInput = ""
+                                    uiState.editingProviderKeyId = nil
+                                }) {
+                                    Text("✕")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    } else if hasKey {
+                        HStack {
+                            Label(L10n.isKorean ? "토큰 안전 등록됨" : "Token Stored", systemImage: "checkmark.shield.fill")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.green)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                uiState.genericKeyInput = ""
+                                uiState.editingProviderKeyId = "cursor"
+                            }) {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 8))
+                                    Text(L10n.isKorean ? "토큰 변경" : "Update")
+                                        .font(.system(size: 9))
+                                }
+                                .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    } else {
+                        HStack {
+                            Text(isDetected ? (L10n.isKorean ? "로컬 /Applications/Cursor.app 연동" : "Linked with /Applications/Cursor.app") : (L10n.isKorean ? "Cursor 설치 시 자동 연동됩니다" : "Auto-detected on Cursor install"))
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                uiState.genericKeyInput = ""
+                                uiState.editingProviderKeyId = "cursor"
+                            }) {
+                                Text(L10n.isKorean ? "토큰 설정" : "Set Token")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    
+                    Spacer(minLength: 0)
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(6)
+                
+                // Right Column: Usage Trend View
+                ProviderTrendView(title: "Cursor", trend: trend)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(10)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 0.5)
+        )
     }
 }

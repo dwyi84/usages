@@ -18,7 +18,7 @@ public final class OpenCodeProvider: @unchecked Sendable {
         guard isAvailable else {
             return ServiceUsageSnapshot(
                 service: .openCode,
-                planName: "Go Subscription",
+                planName: "OpenCode Go",
                 remainingPercent: 0.0,
                 billingDateString: "",
                 daysUntilBilling: 0,
@@ -51,7 +51,7 @@ public final class OpenCodeProvider: @unchecked Sendable {
         
         return ServiceUsageSnapshot(
             service: .openCode,
-            planName: "Go Subscription",
+            planName: "OpenCode Go",
             remainingPercent: 0.0,
             billingDateString: "",
             daysUntilBilling: 0,
@@ -124,7 +124,7 @@ public final class OpenCodeProvider: @unchecked Sendable {
                 
                 return ServiceUsageSnapshot(
                     service: .openCode,
-                    planName: "Go Subscription",
+                    planName: "OpenCode Go",
                     remainingPercent: monthRem,
                     billingDateString: billingStr,
                     daysUntilBilling: daysRem,
@@ -312,7 +312,7 @@ public final class OpenCodeProvider: @unchecked Sendable {
             sqlite3_finalize(logStmt)
         }
         if recentLog.isEmpty {
-            recentLog = L10n.isKorean ? "최근 세션: Go Subscription 활성" : "Recent: Go Subscription Active"
+            recentLog = L10n.isKorean ? "최근 세션: OpenCode Go 활성" : "Recent: OpenCode Go Active"
         }
         
         return UsageTrendSummary(
