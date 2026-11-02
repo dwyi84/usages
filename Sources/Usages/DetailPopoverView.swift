@@ -167,7 +167,7 @@ public struct DetailPopoverView: View {
             .padding(.vertical, 8)
             .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(width: 580)
+        .frame(width: 520)
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             uiState.openRouterKeyInput = settings.openRouterApiKey

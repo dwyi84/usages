@@ -120,7 +120,40 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
-            popover.contentViewController?.view.window?.makeKey()
+            clampPopoverWindow(for: sender)
+            
+            DispatchQueue.main.async { [weak self] in
+                self?.clampPopoverWindow(for: sender)
+                self?.popover.contentViewController?.view.window?.makeKey()
+            }
+        }
+    }
+    
+    private func clampPopoverWindow(for sender: NSStatusBarButton) {
+        guard let popWindow = popover.contentViewController?.view.window else { return }
+        guard let buttonWindow = sender.window,
+              let screen = buttonWindow.screen ?? NSScreen.main else { return }
+        
+        let visibleFrame = screen.visibleFrame
+        let margin: CGFloat = 8.0 // 8pt safety margin from screen edge
+        
+        var frame = popWindow.frame
+        var needsUpdate = false
+        
+        // 1. Right edge overflow check
+        if frame.maxX > visibleFrame.maxX - margin {
+            frame.origin.x = visibleFrame.maxX - margin - frame.width
+            needsUpdate = true
+        }
+        
+        // 2. Left edge overflow check
+        if frame.minX < visibleFrame.minX + margin {
+            frame.origin.x = visibleFrame.minX + margin
+            needsUpdate = true
+        }
+        
+        if needsUpdate {
+            popWindow.setFrame(frame, display: true, animate: false)
         }
     }
     
