@@ -1,13 +1,41 @@
 import SwiftUI
 
+public final class PopoverNavigationState: ObservableObject {
+    public static let shared = PopoverNavigationState()
+    @Published public var showingSettings: Bool = false
+    public init() {}
+}
+
 public struct DetailPopoverView: View {
     @ObservedObject var usageManager = UsageManager.shared
+    @ObservedObject var navState = PopoverNavigationState.shared
+    @ObservedObject var settings = AppSettings.shared
     
     public init() {}
     
     public var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Header
+            if navState.showingSettings {
+                // MARK: - In-Menu Settings View
+                InMenuSettingsView()
+            } else {
+                // MARK: - Main Usage Dashboard View
+                MainUsageDashboardView()
+            }
+        }
+        .frame(width: 460)
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+}
+
+// MARK: - Main Usage Dashboard View
+struct MainUsageDashboardView: View {
+    @ObservedObject var usageManager = UsageManager.shared
+    @ObservedObject var navState = PopoverNavigationState.shared
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
             HStack(spacing: 8) {
                 Image(systemName: "gauge.medium")
                     .foregroundColor(.accentColor)
@@ -37,9 +65,9 @@ public struct DetailPopoverView: View {
                 .buttonStyle(.plain)
                 .help("새로고침")
                 
-                // 환경설정 버튼
+                // 메뉴 내 환경설정 전환 버튼
                 Button(action: {
-                    openSettingsWindow()
+                    navState.showingSettings = true
                 }) {
                     Image(systemName: "gearshape")
                         .font(.system(size: 11))
@@ -53,14 +81,10 @@ public struct DetailPopoverView: View {
             
             Divider()
             
-            // MARK: - Body (스크롤바 없이 순차 2개 섹션)
+            // Body (스크롤바 없이 순차 2개 섹션)
             VStack(spacing: 14) {
-                // SECTION 1: OpenCode Go Subscription
                 OpenCodeSubscriptionSection(snapshot: usageManager.openCodeSnapshot)
-                
                 Divider()
-                
-                // SECTION 2: Google AI Pro Models
                 GoogleAIProSection(snapshot: usageManager.googleAISnapshot)
             }
             .padding(.horizontal, 16)
@@ -68,7 +92,7 @@ public struct DetailPopoverView: View {
             
             Divider()
             
-            // MARK: - Footer
+            // Footer
             HStack {
                 HStack(spacing: 6) {
                     Circle()
@@ -92,8 +116,6 @@ public struct DetailPopoverView: View {
             .padding(.vertical, 8)
             .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(width: 460) // 스크롤바가 일절 생기지 않도록 충분한 너비
-        .background(Color(NSColor.windowBackgroundColor))
     }
     
     private func formatTime(_ date: Date) -> String {
@@ -101,11 +123,106 @@ public struct DetailPopoverView: View {
         f.dateFormat = "HH:mm:ss 갱신"
         return f.string(from: date)
     }
+}
+
+// MARK: - In-Menu Settings View (메뉴 내부에서 즉시 처리)
+struct InMenuSettingsView: View {
+    @ObservedObject var navState = PopoverNavigationState.shared
+    @ObservedObject var settings = AppSettings.shared
     
-    private func openSettingsWindow() {
-        if let appDelegate = NSApp.delegate as? AppDelegate {
-            appDelegate.showPreferencesWindow(nil)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Header with Back Button
+            HStack {
+                Button(action: {
+                    navState.showingSettings = false
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("사용량 대시보드로 돌아가기")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+                
+                Spacer()
+                
+                Text("환경설정")
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 8)
+            
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 14) {
+                // 1. 자동 동기화 상태
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("실시간 동기화 상태")
+                        .font(.system(size: 11, weight: .bold))
+                    
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.shield.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 14))
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("로컬 서비스 100% 자동 연동 중")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("OpenCode Go 및 Google AI Pro의 모든 실시간 쿼터와 리셋 주기가 시스템에서 안전하게 자동 동기화됩니다.")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(10)
+                    .background(Color.green.opacity(0.08))
+                    .cornerRadius(6)
+                }
+                
+                Divider()
+                
+                // 2. 자동 새로고침 주기
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("백그라운드 자동 갱신 주기")
+                        .font(.system(size: 11, weight: .bold))
+                    
+                    Picker("", selection: $settings.refreshIntervalSeconds) {
+                        Text("15초").tag(15.0)
+                        Text("30초 (권장)").tag(30.0)
+                        Text("1분").tag(60.0)
+                        Text("5분").tag(300.0)
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    Text("메뉴바 배터리 바 및 쿼터 수치를 백그라운드에서 동기화하는 간격입니다.")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            
+            Spacer()
+            
+            Divider()
+            
+            // Footer
+            HStack {
+                Spacer()
+                Button("완료") {
+                    navState.showingSettings = false
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.windowBackgroundColor))
         }
+        .frame(height: 320)
     }
 }
 
@@ -269,7 +386,6 @@ struct QuotaRemainingRow: View {
                     .foregroundColor(remainingPercent <= 15 ? .red : (remainingPercent <= 35 ? .orange : .primary))
             }
             
-            // Progress Bar (남은 양만큼 채워짐)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 3)

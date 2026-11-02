@@ -76,6 +76,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(sender)
         } else {
+            PopoverNavigationState.shared.showingSettings = false
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
@@ -101,26 +102,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc public func showPreferencesWindow(_ sender: Any?) {
-        if let window = settingsWindow {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
+        PopoverNavigationState.shared.showingSettings = true
+        if let button = statusItem?.button, !popover.isShown {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            popover.contentViewController?.view.window?.makeKey()
         }
-        
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 230),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        window.center()
-        window.title = "Usages 환경설정"
-        window.contentViewController = NSHostingController(rootView: SettingsView())
-        window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        
-        self.settingsWindow = window
     }
     
     @objc private func quitApp() {
