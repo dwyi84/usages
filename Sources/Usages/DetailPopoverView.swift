@@ -313,35 +313,54 @@ struct OpenCodeSectionView: View {
             }
             
             // 2-Column Split: Left Quotas / Right Trend & Cost
-            HStack(alignment: .top, spacing: 10) {
-                // Left: 한도 쿼터 게이지
-                VStack(spacing: 6) {
-                    CleanProgressBar(
-                        title: L10n.fiveHourWindow,
-                        percent: windows.fiveHourRemainingPercent,
-                        resetInfo: windows.fiveHourResetString
-                    )
+            if snapshot.isAvailable {
+                HStack(alignment: .top, spacing: 10) {
+                    // Left: 한도 쿼터 게이지
+                    VStack(spacing: 6) {
+                        CleanProgressBar(
+                            title: L10n.fiveHourWindow,
+                            percent: windows.fiveHourRemainingPercent,
+                            resetInfo: windows.fiveHourResetString
+                        )
+                        
+                        CleanProgressBar(
+                            title: L10n.weekly,
+                            percent: windows.weeklyRemainingPercent,
+                            resetInfo: windows.weeklyResetString
+                        )
+                        
+                        CleanProgressBar(
+                            title: L10n.monthly,
+                            percent: windows.monthlyRemainingPercent,
+                            resetInfo: windows.monthlyResetString
+                        )
+                    }
+                    .padding(8)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(6)
+                    .frame(maxWidth: .infinity)
                     
-                    CleanProgressBar(
-                        title: L10n.weekly,
-                        percent: windows.weeklyRemainingPercent,
-                        resetInfo: windows.weeklyResetString
-                    )
-                    
-                    CleanProgressBar(
-                        title: L10n.monthly,
-                        percent: windows.monthlyRemainingPercent,
-                        resetInfo: windows.monthlyResetString
-                    )
+                    // Right: 토큰 트렌드 & 코스트 환산
+                    ProviderTrendView(title: L10n.openCodeTitle, trend: snapshot.trendSummary)
+                        .frame(maxWidth: .infinity)
                 }
-                .padding(8)
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 13))
+                        .foregroundColor(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.isKorean ? "OpenCode Go 인증 미감지" : "OpenCode Go Credentials Not Detected")
+                            .font(.system(size: 10, weight: .bold))
+                        Text(L10n.isKorean ? "로컬 OpenCode 인증 파일(~/.local/share/opencode/opencode.db)이 없거나 로그인되지 않았습니다." : "Local OpenCode credentials (~/.local/share/opencode/opencode.db) not found or not signed in.")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(10)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(6)
-                .frame(maxWidth: .infinity)
-                
-                // Right: 토큰 트렌드 & 코스트 환산
-                ProviderTrendView(title: L10n.openCodeTitle, trend: snapshot.trendSummary)
-                    .frame(maxWidth: .infinity)
             }
         }
     }
@@ -440,103 +459,122 @@ struct GoogleAISectionView: View {
             }
             
             // 2-Column Split: Left Quotas (5h -> 주간 -> 월간) / Right Trend & Cost
-            HStack(alignment: .top, spacing: 10) {
-                // Left: 5시간 -> 주간 -> 월간 순서
-                VStack(spacing: 5) {
-                    // 1. 5시간 윈도우
-                    HStack {
-                        Text(L10n.fiveHourWindow)
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    CleanProgressBar(
-                        title: L10n.geminiModels,
-                        percent: groups.geminiFiveHourRemainingPercent,
-                        resetInfo: groups.geminiFiveHourResetString
-                    )
-                    CleanProgressBar(
-                        title: L10n.claudeAndGpt,
-                        percent: groups.claudeFiveHourRemainingPercent,
-                        resetInfo: groups.claudeFiveHourResetString
-                    )
-                    
-                    Divider().padding(.vertical, 1)
-                    
-                    // 2. 주간 한도
-                    HStack {
-                        Text(L10n.weekly)
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    CleanProgressBar(
-                        title: L10n.geminiModels,
-                        percent: groups.geminiWeeklyRemainingPercent,
-                        resetInfo: groups.geminiWeeklyResetString
-                    )
-                    CleanProgressBar(
-                        title: L10n.claudeAndGpt,
-                        percent: groups.claudeWeeklyRemainingPercent,
-                        resetInfo: groups.claudeWeeklyResetString
-                    )
-                    CleanProgressBar(
-                        title: L10n.geminiArgon,
-                        percent: groups.argonWeeklyRemainingPercent,
-                        resetInfo: groups.argonWeeklyResetString
-                    )
-                    
-                    Divider().padding(.vertical, 1)
-                    
-                    // 3. 월간 리셋
-                    HStack {
-                        Text(L10n.monthly)
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        if settings.googleBillingDayOfMonth > 0 && !groups.nextBillingDateString.isEmpty {
-                            Button(action: {
-                                uiState.selectedBillingDay = settings.googleBillingDayOfMonth
-                                uiState.isEditingGoogleBillingDay.toggle()
-                            }) {
-                                HStack(spacing: 2) {
-                                    Text(groups.nextBillingDateString)
+            if snapshot.isAvailable {
+                HStack(alignment: .top, spacing: 10) {
+                    // Left: 5시간 -> 주간 -> 월간 순서
+                    VStack(spacing: 5) {
+                        // 1. 5시간 윈도우
+                        HStack {
+                            Text(L10n.fiveHourWindow)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        CleanProgressBar(
+                            title: L10n.geminiModels,
+                            percent: groups.geminiFiveHourRemainingPercent,
+                            resetInfo: groups.geminiFiveHourResetString
+                        )
+                        CleanProgressBar(
+                            title: L10n.claudeAndGpt,
+                            percent: groups.claudeFiveHourRemainingPercent,
+                            resetInfo: groups.claudeFiveHourResetString
+                        )
+                        
+                        Divider().padding(.vertical, 1)
+                        
+                        // 2. 주간 한도
+                        HStack {
+                            Text(L10n.weekly)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        CleanProgressBar(
+                            title: L10n.geminiModels,
+                            percent: groups.geminiWeeklyRemainingPercent,
+                            resetInfo: groups.geminiWeeklyResetString
+                        )
+                        CleanProgressBar(
+                            title: L10n.claudeAndGpt,
+                            percent: groups.claudeWeeklyRemainingPercent,
+                            resetInfo: groups.claudeWeeklyResetString
+                        )
+                        CleanProgressBar(
+                            title: L10n.geminiArgon,
+                            percent: groups.argonWeeklyRemainingPercent,
+                            resetInfo: groups.argonWeeklyResetString
+                        )
+                        
+                        Divider().padding(.vertical, 1)
+                        
+                        // 3. 월간 리셋
+                        HStack {
+                            Text(L10n.monthly)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            if settings.googleBillingDayOfMonth > 0 && !groups.nextBillingDateString.isEmpty {
+                                Button(action: {
+                                    uiState.selectedBillingDay = settings.googleBillingDayOfMonth
+                                    uiState.isEditingGoogleBillingDay.toggle()
+                                }) {
+                                    HStack(spacing: 2) {
+                                        Text(groups.nextBillingDateString)
+                                            .font(.system(size: 9, weight: .semibold))
+                                            .foregroundColor(.purple)
+                                        Image(systemName: "pencil")
+                                            .font(.system(size: 7.5))
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .help(L10n.googleBillingTooltip)
+                            } else {
+                                Button(action: {
+                                    let currentDay = Calendar.current.component(.day, from: Date())
+                                    uiState.selectedBillingDay = currentDay
+                                    uiState.isEditingGoogleBillingDay.toggle()
+                                }) {
+                                    Text(L10n.setBillingDay)
                                         .font(.system(size: 9, weight: .semibold))
                                         .foregroundColor(.purple)
-                                    Image(systemName: "pencil")
-                                        .font(.system(size: 7.5))
-                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .background(Color.purple.opacity(0.12))
+                                        .cornerRadius(3)
                                 }
+                                .buttonStyle(.plain)
+                                .help(L10n.googleBillingTooltip)
                             }
-                            .buttonStyle(.plain)
-                            .help(L10n.googleBillingTooltip)
-                        } else {
-                            Button(action: {
-                                let currentDay = Calendar.current.component(.day, from: Date())
-                                uiState.selectedBillingDay = currentDay
-                                uiState.isEditingGoogleBillingDay.toggle()
-                            }) {
-                                Text(L10n.setBillingDay)
-                                    .font(.system(size: 9, weight: .semibold))
-                                    .foregroundColor(.purple)
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1)
-                                    .background(Color.purple.opacity(0.12))
-                                    .cornerRadius(3)
-                            }
-                            .buttonStyle(.plain)
-                            .help(L10n.googleBillingTooltip)
                         }
                     }
+                    .padding(8)
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(6)
+                    .frame(maxWidth: .infinity)
+                    
+                    // Right: 토큰 트렌드 & 코스트 환산
+                    ProviderTrendView(title: L10n.googleAITitle, trend: snapshot.trendSummary)
+                        .frame(maxWidth: .infinity)
                 }
-                .padding(8)
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 13))
+                        .foregroundColor(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.isKorean ? "Google AI Pro (Antigravity) 미감지" : "Google AI Pro (Antigravity) Not Detected")
+                            .font(.system(size: 10, weight: .bold))
+                        Text(L10n.isKorean ? "Antigravity CLI(agy) 또는 Google AI 계정 키체인 토큰이 설치/로그인되어 있지 않습니다." : "Antigravity CLI (agy) or Google AI Keychain token is not installed or signed in.")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(10)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(6)
-                .frame(maxWidth: .infinity)
-                
-                // Right: 토큰 트렌드 & 코스트 환산
-                ProviderTrendView(title: L10n.googleAITitle, trend: snapshot.trendSummary)
-                    .frame(maxWidth: .infinity)
             }
         }
     }

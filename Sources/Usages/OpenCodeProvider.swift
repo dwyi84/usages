@@ -15,6 +15,21 @@ public final class OpenCodeProvider: @unchecked Sendable {
     }
     
     public func fetchUsageSnapshot() async -> ServiceUsageSnapshot {
+        guard isAvailable else {
+            return ServiceUsageSnapshot(
+                service: .openCode,
+                planName: "Go Subscription",
+                remainingPercent: 0.0,
+                billingDateString: "",
+                daysUntilBilling: 0,
+                status: .unknown,
+                lastUpdated: Date(),
+                isAvailable: false,
+                openCodeWindows: OpenCodeWindows(),
+                trendSummary: UsageTrendSummary()
+            )
+        }
+        
         if let until = rateLimitUntil, Date() < until {
             if var cached = cachedSnapshot {
                 cached.status = .rateLimited
@@ -34,7 +49,18 @@ public final class OpenCodeProvider: @unchecked Sendable {
             return stale
         }
         
-        return await fetchFallbackSnapshot()
+        return ServiceUsageSnapshot(
+            service: .openCode,
+            planName: "Go Subscription",
+            remainingPercent: 0.0,
+            billingDateString: "",
+            daysUntilBilling: 0,
+            status: .unknown,
+            lastUpdated: Date(),
+            isAvailable: false,
+            openCodeWindows: OpenCodeWindows(),
+            trendSummary: fetchLocalUsageTrend()
+        )
     }
     
     private func fetchFromRemoteApi() async -> ServiceUsageSnapshot? {
@@ -112,42 +138,6 @@ public final class OpenCodeProvider: @unchecked Sendable {
         } catch {}
         
         return nil
-    }
-    
-    private func fetchFallbackSnapshot() async -> ServiceUsageSnapshot {
-        let rollReset = L10n.isKorean ? "3시간 37분" : "3h 37m"
-        let weekReset = L10n.isKorean ? "6일 15시간" : "6d 15h"
-        let monthReset = L10n.isKorean ? "6일 13시간" : "6d 13h"
-        let fiveHourStr = L10n.isKorean ? "\(rollReset) 후 리셋" : "Resets in \(rollReset)"
-        let weeklyStr = L10n.isKorean ? "\(weekReset) 후 리셋" : "Resets in \(weekReset)"
-        let monthlyStr = L10n.isKorean ? "\(monthReset) 후 리셋" : "Resets in \(monthReset)"
-        let billingStr = L10n.isKorean ? "\(monthReset) 후 리셋" : "Resets in \(monthReset)"
-        
-        let windows = OpenCodeWindows(
-            fiveHourRemainingPercent: 95.0,
-            fiveHourResetString: fiveHourStr,
-            weeklyRemainingPercent: 98.0,
-            weeklyResetString: weeklyStr,
-            monthlyRemainingPercent: 36.0,
-            monthlyResetString: monthlyStr,
-            nextBillingDateString: billingStr,
-            daysUntilBilling: 6
-        )
-        
-        let trend = fetchLocalUsageTrend()
-        
-        return ServiceUsageSnapshot(
-            service: .openCode,
-            planName: "Go Subscription",
-            remainingPercent: 36.0,
-            billingDateString: billingStr,
-            daysUntilBilling: 6,
-            status: .normal,
-            lastUpdated: Date(),
-            isAvailable: isAvailable,
-            openCodeWindows: windows,
-            trendSummary: trend
-        )
     }
     
     private func readAccessTokenFromDb() -> String? {

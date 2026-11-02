@@ -97,27 +97,27 @@ public enum GaugeStatus {
 
 // MARK: - OpenCode Go Detail Windows (5h, Weekly, Monthly)
 public struct OpenCodeWindows {
-    public var fiveHourRemainingPercent: Double = 95.0
-    public var fiveHourResetString: String = "Resets in 3h 37m"
+    public var fiveHourRemainingPercent: Double = 0.0
+    public var fiveHourResetString: String = "-"
     
-    public var weeklyRemainingPercent: Double = 98.0
-    public var weeklyResetString: String = "Resets in 6d 15h"
+    public var weeklyRemainingPercent: Double = 0.0
+    public var weeklyResetString: String = "-"
     
-    public var monthlyRemainingPercent: Double = 36.0
-    public var monthlyResetString: String = "Renews in 6d 13h"
+    public var monthlyRemainingPercent: Double = 0.0
+    public var monthlyResetString: String = "-"
     
-    public var nextBillingDateString: String = "6일 13시간 후 리셋"
-    public var daysUntilBilling: Int = 6
+    public var nextBillingDateString: String = ""
+    public var daysUntilBilling: Int = 0
     
     public init(
-        fiveHourRemainingPercent: Double = 95.0,
-        fiveHourResetString: String = "3시간 37분 후 리셋",
-        weeklyRemainingPercent: Double = 98.0,
-        weeklyResetString: String = "6일 15시간 후 리셋",
-        monthlyRemainingPercent: Double = 36.0,
-        monthlyResetString: String = "6일 13시간 후 리셋",
-        nextBillingDateString: String = "6일 13시간 후 리셋",
-        daysUntilBilling: Int = 6
+        fiveHourRemainingPercent: Double = 0.0,
+        fiveHourResetString: String = "-",
+        weeklyRemainingPercent: Double = 0.0,
+        weeklyResetString: String = "-",
+        monthlyRemainingPercent: Double = 0.0,
+        monthlyResetString: String = "-",
+        nextBillingDateString: String = "",
+        daysUntilBilling: Int = 0
     ) {
         self.fiveHourRemainingPercent = fiveHourRemainingPercent
         self.fiveHourResetString = fiveHourResetString
@@ -132,18 +132,18 @@ public struct OpenCodeWindows {
 
 // MARK: - Google AI Pro Detail Groups (Gemini, Claude & GPT, Argon)
 public struct GoogleAIGroupLimits {
-    public var geminiWeeklyRemainingPercent: Double = 93.52
-    public var geminiWeeklyResetString: String = L10n.isKorean ? "4일 19시간 후 리셋" : "Resets in 4d 19h"
-    public var geminiFiveHourRemainingPercent: Double = 90.73
-    public var geminiFiveHourResetString: String = L10n.isKorean ? "3시간 56분 후 리셋" : "Resets in 3h 56m"
+    public var geminiWeeklyRemainingPercent: Double = 0.0
+    public var geminiWeeklyResetString: String = "-"
+    public var geminiFiveHourRemainingPercent: Double = 0.0
+    public var geminiFiveHourResetString: String = "-"
     
-    public var claudeWeeklyRemainingPercent: Double = 100.0
-    public var claudeWeeklyResetString: String = L10n.quotaAvailable
-    public var claudeFiveHourRemainingPercent: Double = 100.0
-    public var claudeFiveHourResetString: String = L10n.quotaAvailable
+    public var claudeWeeklyRemainingPercent: Double = 0.0
+    public var claudeWeeklyResetString: String = "-"
+    public var claudeFiveHourRemainingPercent: Double = 0.0
+    public var claudeFiveHourResetString: String = "-"
     
-    public var argonWeeklyRemainingPercent: Double = 59.25
-    public var argonWeeklyResetString: String = L10n.isKorean ? "2일 22시간 후 리셋" : "Resets in 2d 22h"
+    public var argonWeeklyRemainingPercent: Double = 0.0
+    public var argonWeeklyResetString: String = "-"
     
     public var overallRemainingPercent: Double {
         return min(argonWeeklyRemainingPercent, geminiWeeklyRemainingPercent)
@@ -153,16 +153,16 @@ public struct GoogleAIGroupLimits {
     public var daysUntilBilling: Int = 0
     
     public init(
-        geminiWeeklyRemainingPercent: Double = 93.52,
-        geminiWeeklyResetString: String = "4일 19시간 후 리셋",
-        geminiFiveHourRemainingPercent: Double = 90.73,
-        geminiFiveHourResetString: String = "3시간 56분 후 리셋",
-        claudeWeeklyRemainingPercent: Double = 100.0,
-        claudeWeeklyResetString: String = "Quota available",
-        claudeFiveHourRemainingPercent: Double = 100.0,
-        claudeFiveHourResetString: String = "Quota available",
-        argonWeeklyRemainingPercent: Double = 59.25,
-        argonWeeklyResetString: String = "2일 22시간 후 리셋",
+        geminiWeeklyRemainingPercent: Double = 0.0,
+        geminiWeeklyResetString: String = "-",
+        geminiFiveHourRemainingPercent: Double = 0.0,
+        geminiFiveHourResetString: String = "-",
+        claudeWeeklyRemainingPercent: Double = 0.0,
+        claudeWeeklyResetString: String = "-",
+        claudeFiveHourRemainingPercent: Double = 0.0,
+        claudeFiveHourResetString: String = "-",
+        argonWeeklyRemainingPercent: Double = 0.0,
+        argonWeeklyResetString: String = "-",
         nextBillingDateString: String = "",
         daysUntilBilling: Int = 0
     ) {
@@ -201,12 +201,12 @@ public struct ServiceUsageSnapshot {
     public init(
         service: ServiceType,
         planName: String = "",
-        remainingPercent: Double = 100.0,
+        remainingPercent: Double = 0.0,
         billingDateString: String = "",
-        daysUntilBilling: Int = 6,
-        status: GaugeStatus = .normal,
+        daysUntilBilling: Int = 0,
+        status: GaugeStatus = .unknown,
         lastUpdated: Date = Date(),
-        isAvailable: Bool = true,
+        isAvailable: Bool = false,
         openCodeWindows: OpenCodeWindows = OpenCodeWindows(),
         googleGroups: GoogleAIGroupLimits = GoogleAIGroupLimits(),
         trendSummary: UsageTrendSummary = UsageTrendSummary()
@@ -422,8 +422,18 @@ public final class AppSettings: ObservableObject {
         if let savedIds = defaults.stringArray(forKey: "enabledProviderIds") {
             self.enabledProviderIds = Set(savedIds)
         } else {
-            // 기본값: OpenCode 및 Google AI 활성화
-            self.enabledProviderIds = ["opencode", "google_ai"]
+            // 최초 실행 시: 실제 로컬에 설치/감지된 프로바이더만 활성화 (미설치 상태 시 임의 활성화 방지)
+            var detected: Set<String> = []
+            if OpenCodeProvider.shared.isAvailable {
+                detected.insert("opencode")
+            }
+            if GoogleAIProvider.shared.isAvailable {
+                detected.insert("google_ai")
+            }
+            if let k = KeychainHelper.shared.read(), !k.isEmpty {
+                detected.insert("openrouter")
+            }
+            self.enabledProviderIds = detected
         }
         
         let defaultOrder = ["opencode", "google_ai", "openrouter"]
@@ -434,7 +444,14 @@ public final class AppSettings: ObservableObject {
             }
             self.providerOrder = merged
         } else {
-            self.providerOrder = defaultOrder
+            let detected = defaultOrder.filter { id in
+                if id == "opencode" { return OpenCodeProvider.shared.isAvailable }
+                if id == "google_ai" { return GoogleAIProvider.shared.isAvailable }
+                if id == "openrouter" { return KeychainHelper.shared.read() != nil }
+                return false
+            }
+            let notDetected = defaultOrder.filter { !detected.contains($0) }
+            self.providerOrder = detected + notDetected
         }
         
         self.selectedTabIndex = defaults.integer(forKey: "selectedTabIndex")

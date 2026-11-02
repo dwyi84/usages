@@ -74,11 +74,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             switch id {
             case "opencode":
                 let oc = usageManager.openCodeSnapshot
+                guard oc.isAvailable else { continue }
                 gaugeItems.append(.init(percent: oc.remainingPercent, status: oc.status))
                 tooltips.append("· OpenCode Go: \(Int(oc.remainingPercent))% \(L10n.remaining) (\(oc.openCodeWindows.monthlyResetString))")
                 nearestBillingDays = min(nearestBillingDays, oc.daysUntilBilling)
             case "google_ai":
                 let g = usageManager.googleAISnapshot
+                guard g.isAvailable else { continue }
                 gaugeItems.append(.init(percent: g.remainingPercent, status: g.status))
                 if !g.googleGroups.nextBillingDateString.isEmpty {
                     tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining) (\(g.googleGroups.nextBillingDateString))")
@@ -88,6 +90,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             case "openrouter":
                 let or = usageManager.openRouterSnapshot
+                guard or.isConnected else { continue }
                 let bal = or.balanceUSD
                 let pct = min(100.0, (bal / 10.0) * 100.0) // $10 기준 정규화
                 gaugeItems.append(.init(percent: pct, status: or.status))
@@ -95,6 +98,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             default:
                 break
             }
+        }
+        
+        if gaugeItems.isEmpty {
+            tooltips.append("· " + (L10n.isKorean ? "활성화된 AI 서비스 없음 (클릭하여 설정)" : "No active AI services (click to configure)"))
         }
         
         let img = BatteryGaugeRenderer.renderDynamicBars(

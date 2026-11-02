@@ -17,6 +17,21 @@ public final class GoogleAIProvider: @unchecked Sendable {
     }
     
     public func fetchUsageSnapshot() async -> ServiceUsageSnapshot {
+        guard isAvailable else {
+            return ServiceUsageSnapshot(
+                service: .googleAI,
+                planName: "Google AI Pro Plan",
+                remainingPercent: 0.0,
+                billingDateString: "",
+                daysUntilBilling: 0,
+                status: .unknown,
+                lastUpdated: Date(),
+                isAvailable: false,
+                googleGroups: GoogleAIGroupLimits(),
+                trendSummary: UsageTrendSummary()
+            )
+        }
+        
         // Rate limit 중이면 캐시 반환
         if let until = rateLimitUntil, Date() < until {
             let snapshot = buildSnapshot(status: .rateLimited)
@@ -45,8 +60,23 @@ public final class GoogleAIProvider: @unchecked Sendable {
             return buildSnapshot(status: .normal)
         }
         
-        // 3. 둘 다 실패 시 캐시 유지 (Stale-while-revalidate)
-        return buildSnapshot(status: .warning)
+        // 3. 둘 다 실패 시 이전 캐시가 있으면 유지, 없으면 미감지 반환
+        if lastAgyFullFetchDate != nil || cachedLimits.geminiWeeklyRemainingPercent > 0 {
+            return buildSnapshot(status: .warning)
+        }
+        
+        return ServiceUsageSnapshot(
+            service: .googleAI,
+            planName: "Google AI Pro Plan",
+            remainingPercent: 0.0,
+            billingDateString: "",
+            daysUntilBilling: 0,
+            status: .unknown,
+            lastUpdated: Date(),
+            isAvailable: false,
+            googleGroups: GoogleAIGroupLimits(),
+            trendSummary: fetchLocalUsageTrend()
+        )
     }
     
     public static func calculateNextBilling(dayOfMonth: Int) -> (dateString: String, daysRemaining: Int) {

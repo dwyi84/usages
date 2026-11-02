@@ -25,7 +25,7 @@ public final class BatteryGaugeRenderer {
         let segmentGap: CGFloat = 1.0
         let barSpacing: CGFloat = 2.5
         
-        let displayItems = items.isEmpty ? [GaugeItem(percent: 100.0, status: .normal)] : Array(items.prefix(3))
+        let displayItems = items.isEmpty ? [GaugeItem(percent: 0.0, status: .unknown)] : Array(items.prefix(3))
         let barCount = displayItems.count
         
         let totalBarHeight = (CGFloat(segmentCount) * segmentHeight) + (CGFloat(segmentCount - 1) * segmentGap) // 14.2pt
