@@ -6,7 +6,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     
     private var statusItem: NSStatusItem?
     private var popover = NSPopover()
-    private var settingsWindow: NSWindow?
     private let usageManager = UsageManager.shared
     
     public func applicationDidFinishLaunching(_ notification: Notification) {
@@ -76,7 +75,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(sender)
         } else {
-            PopoverNavigationState.shared.showingSettings = false
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
@@ -85,8 +83,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showContextMenu(_ sender: NSStatusBarButton) {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "AI Usages 새로고침", action: #selector(refreshClicked), keyEquivalent: "r"))
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "환경설정...", action: #selector(showPreferencesWindow(_:)), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Usages 종료", action: #selector(quitApp), keyEquivalent: "q"))
         
@@ -98,14 +94,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func refreshClicked() {
         Task {
             await usageManager.refreshAll()
-        }
-    }
-    
-    @objc public func showPreferencesWindow(_ sender: Any?) {
-        PopoverNavigationState.shared.showingSettings = true
-        if let button = statusItem?.button, !popover.isShown {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
         }
     }
     
