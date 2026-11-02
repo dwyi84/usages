@@ -427,9 +427,15 @@ struct OpenCodeSectionView: View {
                 
                 Spacer()
                 
-                Text("• \(windows.monthlyResetString)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.blue)
+                HStack(spacing: 4) {
+                    Text("• \(windows.monthlyResetString)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.blue)
+                    Text("(\(L10n.isKorean ? "API 자동" : "API Auto"))")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
+                .help(L10n.autoSyncedTooltip)
             }
             
             VStack(spacing: 6) {
@@ -462,6 +468,8 @@ struct OpenCodeSectionView: View {
 struct GoogleAISectionView: View {
     let snapshot: ServiceUsageSnapshot
     var groups: GoogleAIGroupLimits { snapshot.googleGroups }
+    @ObservedObject var uiState = PopoverUIState.shared
+    @ObservedObject var settings = AppSettings.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -471,9 +479,87 @@ struct GoogleAISectionView: View {
                 
                 Spacer()
                 
-                Text("• \(groups.nextBillingDateString)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.purple)
+                if settings.googleBillingDayOfMonth > 0 && !groups.nextBillingDateString.isEmpty {
+                    Button(action: {
+                        uiState.selectedBillingDay = settings.googleBillingDayOfMonth
+                        uiState.isEditingGoogleBillingDay.toggle()
+                    }) {
+                        HStack(spacing: 3) {
+                            Text("• \(groups.nextBillingDateString)")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.purple)
+                            Image(systemName: "pencil")
+                                .font(.system(size: 8))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .help(L10n.googleBillingTooltip)
+                } else {
+                    Button(action: {
+                        let currentDay = Calendar.current.component(.day, from: Date())
+                        uiState.selectedBillingDay = currentDay
+                        uiState.isEditingGoogleBillingDay.toggle()
+                    }) {
+                        Text(L10n.setBillingDay)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.purple)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.12))
+                            .cornerRadius(4)
+                    }
+                    .buttonStyle(.plain)
+                    .help(L10n.googleBillingTooltip)
+                }
+            }
+            
+            if uiState.isEditingGoogleBillingDay {
+                HStack(spacing: 6) {
+                    Text(L10n.billingDayPrompt)
+                        .font(.system(size: 10, weight: .medium))
+                    
+                    Picker("", selection: $uiState.selectedBillingDay) {
+                        ForEach(1...31, id: \.self) { day in
+                            Text("\(day)\(L10n.dayUnit)").tag(day)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 65)
+                    .controlSize(.small)
+                    
+                    Button(L10n.save) {
+                        settings.googleBillingDayOfMonth = uiState.selectedBillingDay
+                        uiState.isEditingGoogleBillingDay = false
+                        Task {
+                            await UsageManager.shared.refreshAll()
+                        }
+                    }
+                    .controlSize(.small)
+                    
+                    if settings.googleBillingDayOfMonth > 0 {
+                        Button(L10n.reset) {
+                            settings.googleBillingDayOfMonth = 0
+                            uiState.isEditingGoogleBillingDay = false
+                            Task {
+                                await UsageManager.shared.refreshAll()
+                            }
+                        }
+                        .controlSize(.small)
+                    }
+                    
+                    Button(action: {
+                        uiState.isEditingGoogleBillingDay = false
+                    }) {
+                        Text("✕")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(6)
+                .background(Color.purple.opacity(0.08))
+                .cornerRadius(6)
             }
             
             VStack(spacing: 6) {

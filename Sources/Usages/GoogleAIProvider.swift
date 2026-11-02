@@ -48,8 +48,61 @@ public final class GoogleAIProvider: @unchecked Sendable {
         return buildSnapshot(status: .warning)
     }
     
+    public static func calculateNextBilling(dayOfMonth: Int) -> (dateString: String, daysRemaining: Int) {
+        guard dayOfMonth >= 1 && dayOfMonth <= 31 else {
+            return ("", 0)
+        }
+        let calendar = Calendar.current
+        let now = Date()
+        let currentDay = calendar.component(.day, from: now)
+        let currentMonth = calendar.component(.month, from: now)
+        let currentYear = calendar.component(.year, from: now)
+        
+        var targetYear = currentYear
+        var targetMonth = currentMonth
+        
+        if dayOfMonth < currentDay {
+            targetMonth += 1
+            if targetMonth > 12 {
+                targetMonth = 1
+                targetYear += 1
+            }
+        }
+        
+        let dateComponents = DateComponents(year: targetYear, month: targetMonth, day: dayOfMonth)
+        var targetDate = calendar.date(from: dateComponents)
+        
+        // 월말 일수 초과 보정 (예: 2월 30일 등)
+        if targetDate == nil {
+            let comps = DateComponents(year: targetYear, month: targetMonth + 1, day: 0)
+            targetDate = calendar.date(from: comps)
+        }
+        
+        guard let billingDate = targetDate else {
+            return ("", 0)
+        }
+        
+        let startOfToday = calendar.startOfDay(for: now)
+        let startOfBilling = calendar.startOfDay(for: billingDate)
+        let days = calendar.dateComponents([.day], from: startOfToday, to: startOfBilling).day ?? 0
+        
+        let isKorean = L10n.isKorean
+        let dateStr: String
+        if days == 0 {
+            dateStr = isKorean ? "D-Day (오늘 갱신)" : "Renews today"
+        } else {
+            dateStr = isKorean ? "D-\(days)일 후 갱신 (매월 \(dayOfMonth)일)" : "Renews in \(days)d (\(dayOfMonth)th)"
+        }
+        return (dateStr, days)
+    }
+
     private func buildSnapshot(status: GaugeStatus) -> ServiceUsageSnapshot {
-        let overallRemaining = cachedLimits.overallRemainingPercent
+        let billingInfo = GoogleAIProvider.calculateNextBilling(dayOfMonth: AppSettings.shared.googleBillingDayOfMonth)
+        var limits = cachedLimits
+        limits.nextBillingDateString = billingInfo.dateString
+        limits.daysUntilBilling = billingInfo.daysRemaining
+        
+        let overallRemaining = limits.overallRemainingPercent
         let resolvedStatus: GaugeStatus
         if status == .rateLimited {
             resolvedStatus = .rateLimited
@@ -61,12 +114,12 @@ public final class GoogleAIProvider: @unchecked Sendable {
             service: .googleAI,
             planName: "Google AI Pro Plan",
             remainingPercent: overallRemaining,
-            billingDateString: cachedLimits.nextBillingDateString,
-            daysUntilBilling: cachedLimits.daysUntilBilling,
+            billingDateString: limits.nextBillingDateString,
+            daysUntilBilling: limits.daysUntilBilling,
             status: resolvedStatus,
             lastUpdated: Date(),
             isAvailable: isAvailable,
-            googleGroups: cachedLimits
+            googleGroups: limits
         )
     }
     

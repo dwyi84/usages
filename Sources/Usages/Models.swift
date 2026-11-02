@@ -102,8 +102,8 @@ public struct GoogleAIGroupLimits {
         return min(argonWeeklyRemainingPercent, geminiWeeklyRemainingPercent)
     }
     
-    public var nextBillingDateString: String = "D-6일 후 갱신"
-    public var daysUntilBilling: Int = 6
+    public var nextBillingDateString: String = ""
+    public var daysUntilBilling: Int = 0
     
     public init(
         geminiWeeklyRemainingPercent: Double = 93.52,
@@ -116,8 +116,8 @@ public struct GoogleAIGroupLimits {
         claudeFiveHourResetString: String = "Quota available",
         argonWeeklyRemainingPercent: Double = 59.25,
         argonWeeklyResetString: String = "Refreshes in 70h 46m",
-        nextBillingDateString: String = "D-6일 후 갱신",
-        daysUntilBilling: Int = 6
+        nextBillingDateString: String = "",
+        daysUntilBilling: Int = 0
     ) {
         self.geminiWeeklyRemainingPercent = geminiWeeklyRemainingPercent
         self.geminiWeeklyResetString = geminiWeeklyResetString
@@ -228,6 +228,8 @@ public final class PopoverUIState: ObservableObject {
     @Published public var showProviderSettings = false
     @Published public var openRouterKeyInput = ""
     @Published public var showKeySavedToast = false
+    @Published public var isEditingGoogleBillingDay = false
+    @Published public var selectedBillingDay = 1
 }
 
 public final class AppSettings: ObservableObject {
@@ -251,6 +253,10 @@ public final class AppSettings: ObservableObject {
         didSet { defaults.set(openRouterApiKey, forKey: "openRouterApiKey") }
     }
     
+    @Published public var googleBillingDayOfMonth: Int {
+        didSet { defaults.set(googleBillingDayOfMonth, forKey: "googleBillingDayOfMonth") }
+    }
+    
     private init() {
         let savedInterval = defaults.double(forKey: "refreshIntervalSeconds")
         self.refreshIntervalSeconds = savedInterval >= 60.0 ? savedInterval : 300.0 // 기본 5분
@@ -264,6 +270,7 @@ public final class AppSettings: ObservableObject {
         
         self.selectedTabIndex = defaults.integer(forKey: "selectedTabIndex")
         self.openRouterApiKey = defaults.string(forKey: "openRouterApiKey") ?? ""
+        self.googleBillingDayOfMonth = defaults.integer(forKey: "googleBillingDayOfMonth")
     }
     
     public func isProviderEnabled(_ id: String) -> Bool {

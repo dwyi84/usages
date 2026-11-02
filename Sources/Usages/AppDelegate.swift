@@ -61,8 +61,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if settings.isProviderEnabled("google_ai") {
             let g = usageManager.googleAISnapshot
             gaugeItems.append(.init(percent: g.remainingPercent, status: g.status))
-            tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining) (\(g.googleGroups.nextBillingDateString))")
-            nearestBillingDays = min(nearestBillingDays, g.daysUntilBilling)
+            if !g.googleGroups.nextBillingDateString.isEmpty {
+                tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining) (\(g.googleGroups.nextBillingDateString))")
+                nearestBillingDays = min(nearestBillingDays, g.daysUntilBilling)
+            } else {
+                tooltips.append("· Google AI Pro: \(Int(g.remainingPercent))% \(L10n.remaining)")
+            }
         }
         
         if settings.isProviderEnabled("openrouter") {
