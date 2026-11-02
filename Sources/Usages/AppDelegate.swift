@@ -28,6 +28,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         
         Task {
             await usageManager.refreshAll()
+            UpdaterViewModel.shared.checkForUpdates() // CopyNinja 스타일 자동 업데이트 확인
         }
     }
     
@@ -80,50 +81,61 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             case "opencode":
                 let oc = usageManager.openCodeSnapshot
                 guard oc.isAvailable else { continue }
-                let metric = settings.metricDisplay(for: "opencode")
+                let key = settings.selectedMetricKey(for: "opencode")
                 let pct: Double
                 let label: String
                 let resetStr: String
-                switch metric {
-                case .fiveHour:
-                    pct = oc.openCodeWindows.fiveHourRemainingPercent
-                    label = L10n.isKorean ? "5시간" : "5h"
-                    resetStr = oc.openCodeWindows.fiveHourResetString
-                case .weekly:
+                switch key {
+                case "opencode_weekly":
                     pct = oc.openCodeWindows.weeklyRemainingPercent
                     label = L10n.isKorean ? "주간" : "Weekly"
                     resetStr = oc.openCodeWindows.weeklyResetString
-                case .monthly:
+                case "opencode_monthly":
                     pct = oc.openCodeWindows.monthlyRemainingPercent
                     label = L10n.isKorean ? "월간" : "Monthly"
                     resetStr = oc.openCodeWindows.monthlyResetString
+                default: // "opencode_5h"
+                    pct = oc.openCodeWindows.fiveHourRemainingPercent
+                    label = L10n.isKorean ? "5시간" : "5h"
+                    resetStr = oc.openCodeWindows.fiveHourResetString
                 }
                 let status: GaugeStatus = pct <= 15 ? .critical : (pct <= 35 ? .warning : .normal)
                 gaugeItems.append(.init(percent: pct, status: status))
                 tooltips.append("· OpenCode Go (\(label)): \(Int(pct))% \(L10n.remaining) (\(resetStr))")
                 nearestBillingDays = min(nearestBillingDays, oc.daysUntilBilling)
+                
             case "google_ai":
                 let g = usageManager.googleAISnapshot
                 guard g.isAvailable else { continue }
-                let metric = settings.metricDisplay(for: "google_ai")
+                let key = settings.selectedMetricKey(for: "google_ai")
                 let pct: Double
                 let label: String
                 let resetStr: String
-                switch metric {
-                case .fiveHour:
-                    let gem5 = g.googleGroups.geminiFiveHourRemainingPercent
-                    let c5 = g.googleGroups.claudeFiveHourRemainingPercent
-                    pct = c5 > 0 ? min(gem5, c5) : gem5
-                    label = L10n.isKorean ? "5시간" : "5h"
-                    resetStr = g.googleGroups.geminiFiveHourResetString
-                case .weekly:
+                switch key {
+                case "google_claude_5h":
+                    pct = g.googleGroups.claudeFiveHourRemainingPercent
+                    label = L10n.isKorean ? "5시간(Claude&GPT)" : "5h (Claude&GPT)"
+                    resetStr = g.googleGroups.claudeFiveHourResetString
+                case "google_gemini_weekly":
                     pct = g.googleGroups.geminiWeeklyRemainingPercent
-                    label = L10n.isKorean ? "주간" : "Weekly"
+                    label = L10n.isKorean ? "주간(Gemini)" : "Weekly (Gemini)"
                     resetStr = g.googleGroups.geminiWeeklyResetString
-                case .monthly:
-                    pct = g.remainingPercent
+                case "google_claude_weekly":
+                    pct = g.googleGroups.claudeWeeklyRemainingPercent
+                    label = L10n.isKorean ? "주간(Claude&GPT)" : "Weekly (Claude&GPT)"
+                    resetStr = g.googleGroups.claudeWeeklyResetString
+                case "google_argon_weekly":
+                    pct = g.googleGroups.argonWeeklyRemainingPercent
+                    label = L10n.isKorean ? "주간(Argon)" : "Weekly (Argon)"
+                    resetStr = g.googleGroups.argonWeeklyResetString
+                case "google_monthly":
+                    pct = g.googleGroups.overallRemainingPercent > 0 ? g.googleGroups.overallRemainingPercent : g.remainingPercent
                     label = L10n.isKorean ? "월간" : "Monthly"
                     resetStr = g.googleGroups.nextBillingDateString.isEmpty ? "-" : g.googleGroups.nextBillingDateString
+                default: // "google_gemini_5h"
+                    pct = g.googleGroups.geminiFiveHourRemainingPercent
+                    label = L10n.isKorean ? "5시간(Gemini)" : "5h (Gemini)"
+                    resetStr = g.googleGroups.geminiFiveHourResetString
                 }
                 let status: GaugeStatus = pct <= 15 ? .critical : (pct <= 35 ? .warning : .normal)
                 gaugeItems.append(.init(percent: pct, status: status))
@@ -204,6 +216,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func refreshClicked() {
         Task {
             await usageManager.refreshAll()
+            UpdaterViewModel.shared.checkForUpdates() // CopyNinja 스타일 자동 업데이트 확인
         }
     }
     

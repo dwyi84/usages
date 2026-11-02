@@ -501,6 +501,28 @@ public final class AppSettings: ObservableObject {
         didSet { defaults.set(providerMetricDisplay, forKey: "providerMetricDisplay") }
     }
     
+    // 각 카드에서 메뉴바 아이콘으로 표시할 개별 아이템 키 (예: google_gemini_5h, google_claude_weekly 등)
+    @Published public var selectedMetricKeys: [String: String] {
+        didSet { defaults.set(selectedMetricKeys, forKey: "selectedMetricKeys") }
+    }
+    
+    public func selectedMetricKey(for providerId: String) -> String {
+        if let key = selectedMetricKeys[providerId], !key.isEmpty {
+            return key
+        }
+        if providerId == "opencode" { return "opencode_5h" }
+        if providerId == "google_ai" { return "google_gemini_5h" }
+        return ""
+    }
+    
+    public func setSelectedMetricKey(for providerId: String, key: String) {
+        selectedMetricKeys[providerId] = key
+        objectWillChange.send()
+        DispatchQueue.main.async {
+            UsageManager.shared.onSnapshotUpdated?()
+        }
+    }
+    
     public func metricDisplay(for providerId: String) -> QuotaMetricDisplay {
         if let raw = providerMetricDisplay[providerId], let val = QuotaMetricDisplay(rawValue: raw) {
             return val
@@ -597,6 +619,7 @@ public final class AppSettings: ObservableObject {
         
         self.googleBillingDayOfMonth = defaults.integer(forKey: "googleBillingDayOfMonth")
         self.providerMetricDisplay = defaults.dictionary(forKey: "providerMetricDisplay") as? [String: String] ?? [:]
+        self.selectedMetricKeys = defaults.dictionary(forKey: "selectedMetricKeys") as? [String: String] ?? [:]
     }
     
     public func moveProviderUp(id: String) {

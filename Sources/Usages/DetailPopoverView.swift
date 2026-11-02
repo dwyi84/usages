@@ -13,49 +13,50 @@ public struct DetailPopoverView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Header (초소형 슬림 디자인으로 세로 공간 최소화)
-            HStack(spacing: 6) {
-                Text(L10n.appTitle)
-                    .font(.system(size: 11.5, weight: .bold))
-                
-                Text("v\(UpdaterViewModel.currentVersion) · \(formatTime(usageManager.lastRefreshedAt))")
-                    .font(.system(size: 8.5))
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-                
-                // 체크 주기 (슬림 세그먼트)
-                HStack(spacing: 2) {
-                    Text(L10n.checkInterval)
-                        .font(.system(size: 8.5, weight: .medium))
-                        .foregroundColor(.secondary)
+            // MARK: - Header (단일 행 슬림 디자인, 상하폭 최소화)
+            HStack(spacing: 8) {
+                // Title & Version / Time
+                HStack(spacing: 4) {
+                    Text(L10n.appTitle)
+                        .font(.system(size: 11.5, weight: .bold))
+                        .lineLimit(1)
                     
-                    Picker("", selection: $settings.refreshIntervalSeconds) {
-                        Text(L10n.min1).tag(60.0)
-                        Text(L10n.min3).tag(180.0)
-                        Text(L10n.min5).tag(300.0)
-                        Text(L10n.min15).tag(900.0)
-                    }
-                    .pickerStyle(.segmented)
-                    .controlSize(.mini)
-                    .frame(width: 116)
-                    .onChange(of: settings.refreshIntervalSeconds) { _ in
-                        usageManager.startTimer()
-                    }
+                    Text("v\(UpdaterViewModel.currentVersion) · \(formatTime(usageManager.lastRefreshedAt))")
+                        .font(.system(size: 8.5))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
                 
+                Spacer(minLength: 4)
+                
+                // Interval picker (텍스트 없이 초소형 세그먼트 단독 배치로 줄바꿈 방지)
+                Picker("", selection: $settings.refreshIntervalSeconds) {
+                    Text(L10n.min1).tag(60.0)
+                    Text(L10n.min3).tag(180.0)
+                    Text(L10n.min5).tag(300.0)
+                    Text(L10n.min15).tag(900.0)
+                }
+                .pickerStyle(.segmented)
+                .controlSize(.mini)
+                .frame(width: 118)
+                .onChange(of: settings.refreshIntervalSeconds) { _ in
+                    usageManager.startTimer()
+                }
+                
+                // Check for Updates Button
                 if updater.updateState == .updateAvailable, let newVer = updater.pendingUpdateVersion {
                     Button(action: {
                         updater.presentUpdateConfirmation()
                     }) {
                         HStack(spacing: 3) {
                             Circle().fill(Color.orange).frame(width: 5, height: 5)
-                            Text("v\(newVer) \(L10n.updateAvailable)")
+                            Text("v\(newVer) Update")
                                 .font(.system(size: 8.5, weight: .semibold))
                         }
                         .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.15))
+                        .padding(.vertical, 2.5)
+                        .background(Color.orange.opacity(0.18))
+                        .foregroundColor(.orange)
                         .cornerRadius(3)
                     }
                     .buttonStyle(.plain)
@@ -63,17 +64,18 @@ public struct DetailPopoverView: View {
                     Button(action: {
                         updater.checkForUpdatesPresentingAlert()
                     }) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 9))
+                        Text("Check for Updates")
+                            .font(.system(size: 8.5, weight: .medium))
                             .foregroundColor(.secondary)
-                            .padding(3)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2.5)
                             .background(Color(NSColor.separatorColor).opacity(0.12))
                             .cornerRadius(3)
                     }
                     .buttonStyle(.plain)
-                    .help(L10n.checkForUpdates)
                 }
                 
+                // Refresh Button
                 Button(action: {
                     Task {
                         await usageManager.refreshAll()
@@ -93,6 +95,7 @@ public struct DetailPopoverView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 5)
+            .lineLimit(1)
             
             Divider()
             
@@ -316,26 +319,6 @@ struct OpenCodeSectionView: View {
                 
                 Spacer()
                 
-                // 아이콘 게이지 선택기 (5시간 / 주간 / 월간)
-                HStack(spacing: 2) {
-                    Image(systemName: "menubar.arrow.up.rectangle")
-                        .font(.system(size: 7.5))
-                        .foregroundColor(.secondary)
-                    
-                    Picker("", selection: Binding(
-                        get: { settings.metricDisplay(for: "opencode") },
-                        set: { settings.setMetricDisplay(for: "opencode", metric: $0) }
-                    )) {
-                        Text(L10n.isKorean ? "5시간" : "5h").tag(QuotaMetricDisplay.fiveHour)
-                        Text(L10n.isKorean ? "주간" : "Weekly").tag(QuotaMetricDisplay.weekly)
-                        Text(L10n.isKorean ? "월간" : "Monthly").tag(QuotaMetricDisplay.monthly)
-                    }
-                    .pickerStyle(.segmented)
-                    .controlSize(.mini)
-                    .frame(width: 120)
-                    .help(L10n.isKorean ? "메뉴바 아이콘에 표시할 기준을 선택합니다" : "Select which metric appears on the menu bar icon")
-                }
-                
                 Text("• \(windows.monthlyResetString)")
                     .font(.system(size: 9.5, weight: .semibold))
                     .foregroundColor(.blue)
@@ -344,27 +327,36 @@ struct OpenCodeSectionView: View {
             // 2-Column Split: Left Quotas / Right Trend & Cost
             if snapshot.isAvailable {
                 HStack(alignment: .top, spacing: 10) {
-                    // Left: 한도 쿼터 게이지
-                    VStack(spacing: 6) {
+                    // Left: 한도 쿼터 게이지 (개별 클릭 시 쏙 들어가며 아이콘 게이지로 선택)
+                    VStack(spacing: 4) {
                         CleanProgressBar(
                             title: L10n.fiveHourWindow,
                             percent: windows.fiveHourRemainingPercent,
                             resetInfo: windows.fiveHourResetString,
-                            isSelectedForIcon: settings.metricDisplay(for: "opencode") == .fiveHour
+                            isSelectedForIcon: settings.selectedMetricKey(for: "opencode") == "opencode_5h",
+                            onSelect: {
+                                settings.setSelectedMetricKey(for: "opencode", key: "opencode_5h")
+                            }
                         )
                         
                         CleanProgressBar(
                             title: L10n.weekly,
                             percent: windows.weeklyRemainingPercent,
                             resetInfo: windows.weeklyResetString,
-                            isSelectedForIcon: settings.metricDisplay(for: "opencode") == .weekly
+                            isSelectedForIcon: settings.selectedMetricKey(for: "opencode") == "opencode_weekly",
+                            onSelect: {
+                                settings.setSelectedMetricKey(for: "opencode", key: "opencode_weekly")
+                            }
                         )
                         
                         CleanProgressBar(
                             title: L10n.monthly,
                             percent: windows.monthlyRemainingPercent,
                             resetInfo: windows.monthlyResetString,
-                            isSelectedForIcon: settings.metricDisplay(for: "opencode") == .monthly
+                            isSelectedForIcon: settings.selectedMetricKey(for: "opencode") == "opencode_monthly",
+                            onSelect: {
+                                settings.setSelectedMetricKey(for: "opencode", key: "opencode_monthly")
+                            }
                         )
                     }
                     .padding(8)
@@ -434,26 +426,6 @@ struct GoogleAISectionView: View {
                 
                 Spacer()
                 
-                // 아이콘 게이지 선택기 (5시간 / 주간 / 월간)
-                HStack(spacing: 2) {
-                    Image(systemName: "menubar.arrow.up.rectangle")
-                        .font(.system(size: 7.5))
-                        .foregroundColor(.secondary)
-                    
-                    Picker("", selection: Binding(
-                        get: { settings.metricDisplay(for: "google_ai") },
-                        set: { settings.setMetricDisplay(for: "google_ai", metric: $0) }
-                    )) {
-                        Text(L10n.isKorean ? "5시간" : "5h").tag(QuotaMetricDisplay.fiveHour)
-                        Text(L10n.isKorean ? "주간" : "Weekly").tag(QuotaMetricDisplay.weekly)
-                        Text(L10n.isKorean ? "월간" : "Monthly").tag(QuotaMetricDisplay.monthly)
-                    }
-                    .pickerStyle(.segmented)
-                    .controlSize(.mini)
-                    .frame(width: 120)
-                    .help(L10n.isKorean ? "메뉴바 아이콘에 표시할 기준을 선택합니다" : "Select which metric appears on the menu bar icon")
-                }
-                
                 if settings.googleBillingDayOfMonth > 0 && !groups.nextBillingDateString.isEmpty {
                     Text("• \(groups.nextBillingDateString)")
                         .font(.system(size: 9.5, weight: .semibold))
@@ -513,31 +485,32 @@ struct GoogleAISectionView: View {
             // 2-Column Split: Left Quotas (5h -> 주간 -> 월간) / Right Trend & Cost
             if snapshot.isAvailable {
                 HStack(alignment: .top, spacing: 10) {
-                    // Left: 5시간 -> 주간 -> 월간 순서
-                    VStack(spacing: 5) {
+                    // Left: 5시간 -> 주간 -> 월간 순서 (개별 항목 클릭 시 쏙 들어가며 아이콘 게이지로 선택)
+                    VStack(spacing: 4) {
                         // 1. 5시간 윈도우
                         HStack {
                             Text(L10n.fiveHourWindow)
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(.secondary)
-                            if settings.metricDisplay(for: "google_ai") == .fiveHour {
-                                Image(systemName: "menubar.arrow.up.rectangle")
-                                    .font(.system(size: 7.5))
-                                    .foregroundColor(.accentColor)
-                                    .help(L10n.isKorean ? "상단 메뉴바 아이콘으로 표시 중" : "Shown on menu bar icon")
-                            }
                             Spacer()
                         }
                         CleanProgressBar(
                             title: L10n.geminiModels,
                             percent: groups.geminiFiveHourRemainingPercent,
                             resetInfo: groups.geminiFiveHourResetString,
-                            isSelectedForIcon: settings.metricDisplay(for: "google_ai") == .fiveHour
+                            isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_gemini_5h",
+                            onSelect: {
+                                settings.setSelectedMetricKey(for: "google_ai", key: "google_gemini_5h")
+                            }
                         )
                         CleanProgressBar(
                             title: L10n.claudeAndGpt,
                             percent: groups.claudeFiveHourRemainingPercent,
-                            resetInfo: groups.claudeFiveHourResetString
+                            resetInfo: groups.claudeFiveHourResetString,
+                            isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_claude_5h",
+                            onSelect: {
+                                settings.setSelectedMetricKey(for: "google_ai", key: "google_claude_5h")
+                            }
                         )
                         
                         Divider().padding(.vertical, 1)
@@ -547,44 +520,50 @@ struct GoogleAISectionView: View {
                             Text(L10n.weekly)
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(.secondary)
-                            if settings.metricDisplay(for: "google_ai") == .weekly {
-                                Image(systemName: "menubar.arrow.up.rectangle")
-                                    .font(.system(size: 7.5))
-                                    .foregroundColor(.accentColor)
-                                    .help(L10n.isKorean ? "상단 메뉴바 아이콘으로 표시 중" : "Shown on menu bar icon")
-                            }
                             Spacer()
                         }
                         CleanProgressBar(
                             title: L10n.geminiModels,
                             percent: groups.geminiWeeklyRemainingPercent,
                             resetInfo: groups.geminiWeeklyResetString,
-                            isSelectedForIcon: settings.metricDisplay(for: "google_ai") == .weekly
+                            isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_gemini_weekly",
+                            onSelect: {
+                                settings.setSelectedMetricKey(for: "google_ai", key: "google_gemini_weekly")
+                            }
                         )
                         CleanProgressBar(
                             title: L10n.claudeAndGpt,
                             percent: groups.claudeWeeklyRemainingPercent,
-                            resetInfo: groups.claudeWeeklyResetString
+                            resetInfo: groups.claudeWeeklyResetString,
+                            isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_claude_weekly",
+                            onSelect: {
+                                settings.setSelectedMetricKey(for: "google_ai", key: "google_claude_weekly")
+                            }
                         )
                         CleanProgressBar(
                             title: L10n.geminiArgon,
                             percent: groups.argonWeeklyRemainingPercent,
-                            resetInfo: groups.argonWeeklyResetString
+                            resetInfo: groups.argonWeeklyResetString,
+                            isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_argon_weekly",
+                            onSelect: {
+                                settings.setSelectedMetricKey(for: "google_ai", key: "google_argon_weekly")
+                            }
                         )
                         
                         Divider().padding(.vertical, 1)
                         
                         // 3. 월간 리셋
-                        HStack {
-                            Text(L10n.monthly)
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.secondary)
-                            if settings.metricDisplay(for: "google_ai") == .monthly {
-                                Image(systemName: "menubar.arrow.up.rectangle")
-                                    .font(.system(size: 7.5))
-                                    .foregroundColor(.accentColor)
-                                    .help(L10n.isKorean ? "상단 메뉴바 아이콘으로 표시 중" : "Shown on menu bar icon")
+                        CleanProgressBar(
+                            title: L10n.monthly,
+                            percent: groups.overallRemainingPercent > 0 ? groups.overallRemainingPercent : snapshot.remainingPercent,
+                            resetInfo: groups.nextBillingDateString.isEmpty ? "-" : groups.nextBillingDateString,
+                            isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_monthly",
+                            onSelect: {
+                                settings.setSelectedMetricKey(for: "google_ai", key: "google_monthly")
                             }
+                        )
+                        
+                        HStack {
                             Spacer()
                             if settings.googleBillingDayOfMonth > 0 && !groups.nextBillingDateString.isEmpty {
                                 Button(action: {
@@ -593,10 +572,10 @@ struct GoogleAISectionView: View {
                                 }) {
                                     HStack(spacing: 2) {
                                         Text(groups.nextBillingDateString)
-                                            .font(.system(size: 9, weight: .semibold))
+                                            .font(.system(size: 8.5, weight: .semibold))
                                             .foregroundColor(.purple)
                                         Image(systemName: "pencil")
-                                            .font(.system(size: 7.5))
+                                            .font(.system(size: 7))
                                             .foregroundColor(.secondary)
                                     }
                                 }
@@ -609,7 +588,7 @@ struct GoogleAISectionView: View {
                                     uiState.isEditingGoogleBillingDay.toggle()
                                 }) {
                                     Text(L10n.setBillingDay)
-                                        .font(.system(size: 9, weight: .semibold))
+                                        .font(.system(size: 8.5, weight: .semibold))
                                         .foregroundColor(.purple)
                                         .padding(.horizontal, 4)
                                         .padding(.vertical, 1)
@@ -1255,6 +1234,7 @@ struct CleanProgressBar: View {
     let percent: Double
     let resetInfo: String
     var isSelectedForIcon: Bool = false
+    var onSelect: (() -> Void)? = nil
     
     var color: Color {
         if percent <= 15.0 { return .red }
@@ -1270,16 +1250,40 @@ struct CleanProgressBar: View {
     }
     
     var body: some View {
+        Group {
+            if let onSelect = onSelect {
+                Button(action: onSelect) {
+                    contentView
+                }
+                .buttonStyle(.plain)
+            } else {
+                contentView
+            }
+        }
+    }
+    
+    private var contentView: some View {
         VStack(spacing: 2) {
             HStack {
-                HStack(spacing: 3) {
+                HStack(spacing: 4) {
+                    if onSelect != nil {
+                        Image(systemName: isSelectedForIcon ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 8))
+                            .foregroundColor(isSelectedForIcon ? .accentColor : .secondary.opacity(0.35))
+                    }
+                    
                     Text(title)
                         .font(.system(size: 9.5, weight: isSelectedForIcon ? .bold : .medium))
+                        .foregroundColor(.primary)
+                    
                     if isSelectedForIcon {
-                        Image(systemName: "menubar.arrow.up.rectangle")
-                            .font(.system(size: 7.5))
+                        Text(L10n.isKorean ? "아이콘 표시" : "Menu Bar")
+                            .font(.system(size: 7, weight: .bold))
+                            .padding(.horizontal, 3)
+                            .padding(.vertical, 0.8)
+                            .background(Color.accentColor.opacity(0.18))
                             .foregroundColor(.accentColor)
-                            .help(L10n.isKorean ? "상단 메뉴바 아이콘으로 표시 중" : "Shown on menu bar icon")
+                            .cornerRadius(2.5)
                     }
                 }
                 Spacer()
@@ -1301,13 +1305,26 @@ struct CleanProgressBar: View {
             }
             .frame(height: 4.5)
             
-            HStack {
-                Text(resetInfo)
-                    .font(.system(size: 8))
-                    .foregroundColor(.secondary)
-                Spacer()
+            if !resetInfo.isEmpty && resetInfo != "-" {
+                HStack {
+                    Text(resetInfo)
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
             }
         }
+        .padding(.horizontal, onSelect != nil ? 5 : 0)
+        .padding(.vertical, onSelect != nil ? 3.5 : 0)
+        .background(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(isSelectedForIcon ? Color.accentColor.opacity(0.12) : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(isSelectedForIcon ? Color.accentColor.opacity(0.35) : Color.clear, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
     }
 }
 
