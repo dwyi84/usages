@@ -296,6 +296,35 @@ public final class OpenCodeProvider: @unchecked Sendable {
             normalizedPoints.append(DailyUsagePoint(dateString: p.dateString, dateLabel: p.dateLabel, spendUSD: p.spendUSD, tokens: p.tokens, normalized: norm))
         }
         
+        var peakLabel = ""
+        var peakTok = 0
+        if let peak = dailyPoints.max(by: { $0.tokens < $1.tokens }), peak.tokens > 0 {
+            peakLabel = peak.dateLabel
+            peakTok = peak.tokens
+        }
+        
+        var recentLog = ""
+        let logQuery = """
+        SELECT coalesce(json_extract(data, '$.model.id'), 'opencode-go'), coalesce(json_extract(data, '$.cost'), 0.0)
+        FROM session_message 
+        WHERE json_extract(data, '$.cost') > 0 
+        ORDER BY id DESC LIMIT 1;
+        """
+        var logStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, logQuery, -1, &logStmt, nil) == SQLITE_OK {
+            if sqlite3_step(logStmt) == SQLITE_ROW {
+                if let mStr = sqlite3_column_text(logStmt, 0) {
+                    let model = String(cString: mStr)
+                    let cost = sqlite3_column_double(logStmt, 1)
+                    recentLog = L10n.isKorean ? "최근 모델: \(model) ($\(String(format: "%.4f", cost)))" : "Recent: \(model) ($\(String(format: "%.4f", cost)))"
+                }
+            }
+            sqlite3_finalize(logStmt)
+        }
+        if recentLog.isEmpty {
+            recentLog = L10n.isKorean ? "최근 세션: Go Subscription 활성" : "Recent: Go Subscription Active"
+        }
+        
         return UsageTrendSummary(
             todaySpendUSD: todaySpend,
             todayTokens: todayTokens,
@@ -304,7 +333,12 @@ public final class OpenCodeProvider: @unchecked Sendable {
             last30DaysSpendUSD: last30DaysSpend,
             last30DaysTokens: last30DaysTokens,
             dailyBars: dailyBars,
-            dailyPoints: normalizedPoints
+            dailyPoints: normalizedPoints,
+            dailyAvgSpendUSD: last30DaysSpend / 30.0,
+            dailyAvgTokens: last30DaysTokens / 30,
+            peakDateLabel: peakLabel,
+            peakTokens: peakTok,
+            recentActivityLog: recentLog
         )
     }
 }

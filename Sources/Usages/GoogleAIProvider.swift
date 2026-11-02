@@ -421,13 +421,22 @@ public final class GoogleAIProvider: @unchecked Sendable {
         }
         
         let diff = max(0, Int(date.timeIntervalSinceNow))
-        let hours = diff / 3600
+        let totalHours = diff / 3600
         let mins = (diff % 3600) / 60
         
-        if L10n.isKorean {
-            return "\(hours)시간 \(mins)분 후 초기화"
+        if totalHours >= 24 {
+            let days = totalHours / 24
+            let remainingHours = totalHours % 24
+            if L10n.isKorean {
+                return "\(days)일 \(remainingHours)시간 후 리셋"
+            }
+            return "Resets in \(days)d \(remainingHours)h"
+        } else {
+            if L10n.isKorean {
+                return "\(totalHours)시간 \(mins)분 후 리셋"
+            }
+            return "Resets in \(totalHours)h \(mins)m"
         }
-        return "Refreshes in \(hours)h \(mins)m"
     }
     
     private func fetchLocalUsageTrend() -> UsageTrendSummary {
@@ -519,6 +528,28 @@ public final class GoogleAIProvider: @unchecked Sendable {
             normalizedPoints.append(DailyUsagePoint(dateString: p.dateString, dateLabel: p.dateLabel, spendUSD: p.spendUSD, tokens: p.tokens, normalized: norm))
         }
         
+        var peakLabel = ""
+        var peakTok = 0
+        if let peak = dailyPoints.max(by: { $0.tokens < $1.tokens }), peak.tokens > 0 {
+            peakLabel = peak.dateLabel
+            peakTok = peak.tokens
+        }
+        
+        var recentLog = ""
+        let logQuery = "SELECT title, step_count FROM conversation_summaries ORDER BY last_modified_time DESC LIMIT 1;"
+        var logStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, logQuery, -1, &logStmt, nil) == SQLITE_OK {
+            if sqlite3_step(logStmt) == SQLITE_ROW {
+                if let tStr = sqlite3_column_text(logStmt, 0) {
+                    let title = String(cString: tStr)
+                    let steps = Int(sqlite3_column_int64(logStmt, 1))
+                    let cleanTitle = title.count > 20 ? "\(title.prefix(18))..." : title
+                    recentLog = L10n.isKorean ? "최근 세션: \(cleanTitle) (\(steps) steps)" : "Recent: \(cleanTitle) (\(steps) steps)"
+                }
+            }
+            sqlite3_finalize(logStmt)
+        }
+        
         return UsageTrendSummary(
             todaySpendUSD: todaySpend,
             todayTokens: todayTokens,
@@ -527,7 +558,12 @@ public final class GoogleAIProvider: @unchecked Sendable {
             last30DaysSpendUSD: last30DaysSpend,
             last30DaysTokens: last30DaysTokens,
             dailyBars: dailyBars,
-            dailyPoints: normalizedPoints
+            dailyPoints: normalizedPoints,
+            dailyAvgSpendUSD: last30DaysSpend / 30.0,
+            dailyAvgTokens: last30DaysTokens / 30,
+            peakDateLabel: peakLabel,
+            peakTokens: peakTok,
+            recentActivityLog: recentLog
         )
     }
 }

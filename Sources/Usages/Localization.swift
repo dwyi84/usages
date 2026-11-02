@@ -47,7 +47,7 @@ public struct L10n {
     public static var save: String { isKorean ? "저장" : "Save" }
     public static var connectKey: String { isKorean ? "API 키 설정" : "Configure Key" }
     public static var paste: String { isKorean ? "붙여넣기" : "Paste" }
-    public static var usageTrend: String { isKorean ? "사용 트렌드 (Usage Trend)" : "Usage Trend" }
+    public static var usageTrend: String { isKorean ? "사용 트렌드" : "Usage Trend" }
     public static var detailedTrendTitle: String { isKorean ? "상세 사용 트렌드" : "Detailed Usage Trend" }
     public static var dailyAverage: String { isKorean ? "일평균 사용" : "Daily Avg" }
     public static var peakDay: String { isKorean ? "최대 사용일" : "Peak Day" }

@@ -133,9 +133,9 @@ public struct OpenCodeWindows {
 // MARK: - Google AI Pro Detail Groups (Gemini, Claude & GPT, Argon)
 public struct GoogleAIGroupLimits {
     public var geminiWeeklyRemainingPercent: Double = 93.52
-    public var geminiWeeklyResetString: String = L10n.isKorean ? "115시간 45분 후 초기화" : "Refreshes in 115h 45m"
+    public var geminiWeeklyResetString: String = L10n.isKorean ? "4일 19시간 후 리셋" : "Resets in 4d 19h"
     public var geminiFiveHourRemainingPercent: Double = 90.73
-    public var geminiFiveHourResetString: String = L10n.isKorean ? "3시간 56분 후 초기화" : "Refreshes in 3h 56m"
+    public var geminiFiveHourResetString: String = L10n.isKorean ? "3시간 56분 후 리셋" : "Resets in 3h 56m"
     
     public var claudeWeeklyRemainingPercent: Double = 100.0
     public var claudeWeeklyResetString: String = L10n.quotaAvailable
@@ -143,7 +143,7 @@ public struct GoogleAIGroupLimits {
     public var claudeFiveHourResetString: String = L10n.quotaAvailable
     
     public var argonWeeklyRemainingPercent: Double = 59.25
-    public var argonWeeklyResetString: String = L10n.isKorean ? "70시간 46분 후 초기화" : "Refreshes in 70h 46m"
+    public var argonWeeklyResetString: String = L10n.isKorean ? "2일 22시간 후 리셋" : "Resets in 2d 22h"
     
     public var overallRemainingPercent: Double {
         return min(argonWeeklyRemainingPercent, geminiWeeklyRemainingPercent)
@@ -154,15 +154,15 @@ public struct GoogleAIGroupLimits {
     
     public init(
         geminiWeeklyRemainingPercent: Double = 93.52,
-        geminiWeeklyResetString: String = "Refreshes in 115h 45m",
+        geminiWeeklyResetString: String = "4일 19시간 후 리셋",
         geminiFiveHourRemainingPercent: Double = 90.73,
-        geminiFiveHourResetString: String = "Refreshes in 3h 56m",
+        geminiFiveHourResetString: String = "3시간 56분 후 리셋",
         claudeWeeklyRemainingPercent: Double = 100.0,
         claudeWeeklyResetString: String = "Quota available",
         claudeFiveHourRemainingPercent: Double = 100.0,
         claudeFiveHourResetString: String = "Quota available",
         argonWeeklyRemainingPercent: Double = 59.25,
-        argonWeeklyResetString: String = "Refreshes in 70h 46m",
+        argonWeeklyResetString: String = "2일 22시간 후 리셋",
         nextBillingDateString: String = "",
         daysUntilBilling: Int = 0
     ) {
@@ -259,6 +259,13 @@ public struct UsageTrendSummary: Sendable {
     public var dailyBars: [Double] // 30 values, 0.0 to 1.0
     public var dailyPoints: [DailyUsagePoint]
     
+    // Additional metrics & logs to fill vertical space nicely
+    public var dailyAvgSpendUSD: Double
+    public var dailyAvgTokens: Int
+    public var peakDateLabel: String
+    public var peakTokens: Int
+    public var recentActivityLog: String
+    
     public init(
         todaySpendUSD: Double = 0.0,
         todayTokens: Int = 0,
@@ -267,7 +274,12 @@ public struct UsageTrendSummary: Sendable {
         last30DaysSpendUSD: Double = 0.0,
         last30DaysTokens: Int = 0,
         dailyBars: [Double] = [],
-        dailyPoints: [DailyUsagePoint] = []
+        dailyPoints: [DailyUsagePoint] = [],
+        dailyAvgSpendUSD: Double = 0.0,
+        dailyAvgTokens: Int = 0,
+        peakDateLabel: String = "",
+        peakTokens: Int = 0,
+        recentActivityLog: String = ""
     ) {
         self.todaySpendUSD = todaySpendUSD
         self.todayTokens = todayTokens
@@ -277,6 +289,11 @@ public struct UsageTrendSummary: Sendable {
         self.last30DaysTokens = last30DaysTokens
         self.dailyBars = dailyBars.isEmpty ? Array(repeating: 0.0, count: 30) : dailyBars
         self.dailyPoints = dailyPoints
+        self.dailyAvgSpendUSD = dailyAvgSpendUSD > 0.0 ? dailyAvgSpendUSD : (last30DaysSpendUSD / 30.0)
+        self.dailyAvgTokens = dailyAvgTokens > 0 ? dailyAvgTokens : (last30DaysTokens / 30)
+        self.peakDateLabel = peakDateLabel
+        self.peakTokens = peakTokens
+        self.recentActivityLog = recentActivityLog
     }
 }
 

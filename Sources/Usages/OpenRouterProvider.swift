@@ -227,6 +227,17 @@ public final class OpenRouterProvider: @unchecked Sendable {
             normalizedPoints.append(DailyUsagePoint(dateString: p.dateString, dateLabel: p.dateLabel, spendUSD: p.spendUSD, tokens: p.tokens, normalized: norm))
         }
         
+        var peakLabel = ""
+        var peakTok = 0
+        if let peak = dailyPoints.max(by: { $0.tokens < $1.tokens }), peak.tokens > 0 {
+            peakLabel = peak.dateLabel
+            peakTok = peak.tokens
+        }
+        
+        let recentLog = (keyInfo != nil && (keyInfo?.usageTotal ?? 0) > 0)
+            ? (L10n.isKorean ? "프롬프트: \(keyInfo?.promptTokens ?? 0) · 완성: \(keyInfo?.completionTokens ?? 0)" : "Prompt: \(keyInfo?.promptTokens ?? 0) · Comp: \(keyInfo?.completionTokens ?? 0)")
+            : (L10n.isKorean ? "API 키 정상 연동됨" : "API Key Connected")
+        
         return UsageTrendSummary(
             todaySpendUSD: todaySpend,
             todayTokens: todayTokens,
@@ -235,7 +246,12 @@ public final class OpenRouterProvider: @unchecked Sendable {
             last30DaysSpendUSD: last30DaysSpend,
             last30DaysTokens: last30DaysTokens,
             dailyBars: dailyBars,
-            dailyPoints: normalizedPoints
+            dailyPoints: normalizedPoints,
+            dailyAvgSpendUSD: last30DaysSpend / 30.0,
+            dailyAvgTokens: last30DaysTokens / 30,
+            peakDateLabel: peakLabel,
+            peakTokens: peakTok,
+            recentActivityLog: recentLog
         )
     }
 }

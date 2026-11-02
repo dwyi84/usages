@@ -177,7 +177,7 @@ public struct DetailPopoverView: View {
             .padding(.vertical, 8)
             .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(width: 520)
+        .frame(width: 480)
         .background(Color(NSColor.windowBackgroundColor))
         .popover(isPresented: $uiState.showDetailedTrendPopover, arrowEdge: .leading) {
             if let summary = uiState.selectedTrendSummary {
@@ -786,6 +786,50 @@ struct ProviderTrendView: View {
                 Spacer()
                 Text("\(formatCurrency(trend.last30DaysSpendUSD)) · \(formatTokenCount(trend.last30DaysTokens))")
                     .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+            }
+            
+            Divider()
+            
+            // Daily Avg & Peak
+            HStack {
+                Text(L10n.dailyAverage)
+                    .font(.system(size: 8.5, weight: .medium))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("\(formatCurrency(trend.dailyAvgSpendUSD)) · \(formatTokenCount(trend.dailyAvgTokens))")
+                    .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.secondary)
+            }
+            
+            if !trend.peakDateLabel.isEmpty && trend.peakTokens > 0 {
+                HStack {
+                    Text(L10n.peakDay)
+                        .font(.system(size: 8.5, weight: .medium))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("\(trend.peakDateLabel): \(formatTokenCount(trend.peakTokens))")
+                        .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.orange)
+                }
+            }
+            
+            // Recent Session / Activity Log Badge
+            if !trend.recentActivityLog.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 7.5))
+                        .foregroundColor(.secondary)
+                    Text(trend.recentActivityLog)
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2.5)
+                .background(Color(NSColor.separatorColor).opacity(0.08))
+                .cornerRadius(4)
             }
         }
         .padding(8)
