@@ -73,7 +73,7 @@ public struct DetailPopoverView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .tint(.orange)
+                    .tint(.accentColor)
                     .help("Update to v\(newVer)")
                 } else {
                     Button(action: {
@@ -177,6 +177,15 @@ public struct DetailPopoverView: View {
                 .padding(.vertical, DS.Spacing.md)
                 }
                 .frame(maxHeight: 620)
+                .overlay(alignment: .bottom) {
+                    LinearGradient(
+                        colors: [Color.black.opacity(0), Color.black.opacity(0.06)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 20)
+                    .allowsHitTesting(false)
+                }
                 .onAppear {
                     proxy.scrollTo("usageTop", anchor: .top)
                 }
@@ -378,7 +387,7 @@ struct OpenCodeSectionView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 13))
-                        .foregroundColor(.orange)
+                        .foregroundColor(.accentColor)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L10n.isKorean ? "OpenCode Go 인증 미감지" : "OpenCode Go Credentials Not Detected")
                             .font(.system(size: 10.5, weight: .semibold))
@@ -610,7 +619,7 @@ struct GoogleAISectionView: View {
                                         Image(systemName: "calendar")
                                             .font(.system(size: 8.5))
                                         Text(L10n.isKorean ? "리셋일 변경" : "Change Reset Day")
-                                            .font(.system(size: 9, weight: .medium))
+                                            .font(.system(size: 9.5, weight: .medium))
                                     }
                                     .foregroundColor(DS.textSecondary)
                                 }
@@ -647,7 +656,7 @@ struct GoogleAISectionView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 13))
-                        .foregroundColor(.orange)
+                        .foregroundColor(.accentColor)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L10n.isKorean ? "Google AI Pro (Antigravity) 미감지" : "Google AI Pro (Antigravity) Not Detected")
                             .font(.system(size: 10.5, weight: .semibold))
@@ -708,6 +717,10 @@ struct OpenRouterSectionView: View {
                     Text(String(format: "%@: $%.2f", L10n.balance, snapshot.balanceUSD))
                         .font(.system(size: 10.5, weight: .semibold))
                         .foregroundColor(.accentColor)
+                } else if settings.hasOpenRouterKey {
+                    Text("• " + (L10n.isKorean ? "키 등록됨 · 확인 중" : "Key Saved · Checking"))
+                        .font(.system(size: 9.5))
+                        .foregroundColor(.accentColor)
                 } else {
                     Text("• " + (L10n.isKorean ? "키 미설정" : "Key Not Set"))
                         .font(.system(size: 9.5))
@@ -724,7 +737,7 @@ struct OpenRouterSectionView: View {
                             Text(L10n.balance)
                                 .font(.system(size: 9))
                                 .foregroundColor(DS.textSecondary)
-                            Text(String(format: "$%.2f", snapshot.balanceUSD))
+                            Text(snapshot.isConnected ? String(format: "$%.2f", snapshot.balanceUSD) : "—")
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.accentColor)
                         }
@@ -735,10 +748,14 @@ struct OpenRouterSectionView: View {
                             Text(L10n.isKorean ? "✓ 연동됨" : "✓ Active")
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundColor(.green)
+                        } else if settings.hasOpenRouterKey {
+                            Text(L10n.isKorean ? "키 등록됨 · 확인 중" : "Key Saved · Checking")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.accentColor)
                         } else {
                             Text(L10n.isKorean ? "키 등록 필요" : "Setup Required")
-                                .font(.system(size: 9))
-                                .foregroundColor(.orange)
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.accentColor)
                         }
                     }
                     
@@ -885,58 +902,35 @@ struct ProviderTrendView: View {
             
             SoftDivider()
             
-            // Today
-            HStack {
-                Text(L10n.today)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundColor(DS.textSecondary)
-                Spacer()
-                Text("\(formatSpend(trend.todaySpendUSD)) · \(formatTokenCount(trend.todayTokens))")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            }
-            
-            // Yesterday
-            HStack {
-                Text(L10n.yesterday)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundColor(DS.textSecondary)
-                Spacer()
-                Text("\(formatSpend(trend.yesterdaySpendUSD)) · \(formatTokenCount(trend.yesterdayTokens))")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            }
-            
-            // Last 30 Days
-            HStack {
-                Text(L10n.last30Days)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundColor(DS.textSecondary)
-                Spacer()
-                Text("\(formatSpend(trend.last30DaysSpendUSD)) · \(formatTokenCount(trend.last30DaysTokens))")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            }
+            metricRow(label: L10n.today, spend: trend.todaySpendUSD, tokens: trend.todayTokens)
+            metricRow(label: L10n.yesterday, spend: trend.yesterdaySpendUSD, tokens: trend.yesterdayTokens)
+            metricRow(label: L10n.last30Days, spend: trend.last30DaysSpendUSD, tokens: trend.last30DaysTokens)
             
             SoftDivider()
             
             // Daily Avg & Peak
-            HStack {
-                Text(L10n.dailyAverage)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(DS.textSecondary)
-                Spacer()
-                Text("\(formatSpend(trend.dailyAvgSpendUSD)) · \(formatTokenCount(trend.dailyAvgTokens))")
-                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                    .foregroundColor(DS.textSecondary)
-            }
+            metricRow(
+                label: L10n.dailyAverage,
+                spend: trend.dailyAvgSpendUSD,
+                tokens: trend.dailyAvgTokens,
+                compact: true,
+                secondary: true
+            )
             
             if !trend.peakDateLabel.isEmpty && trend.peakTokens > 0 {
-                HStack {
+                HStack(spacing: 4) {
                     Text(L10n.peakDay)
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 9.5, weight: .medium))
                         .foregroundColor(DS.textSecondary)
-                    Spacer()
-                    Text("\(trend.peakDateLabel): \(formatTokenCount(trend.peakTokens))")
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.orange)
+                    Spacer(minLength: 4)
+                    Text(trend.peakDateLabel)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundColor(DS.textSecondary)
+                    Text(formatTokenCount(trend.peakTokens))
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundColor(.primary)
                 }
             }
             
@@ -944,10 +938,10 @@ struct ProviderTrendView: View {
             if !trend.recentActivityLog.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 8))
+                        .font(.system(size: 8.5))
                         .foregroundColor(DS.textSecondary)
                     Text(trend.recentActivityLog)
-                        .font(.system(size: 9))
+                        .font(.system(size: 9.5))
                         .foregroundColor(DS.textSecondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -960,6 +954,35 @@ struct ProviderTrendView: View {
         }
         .padding(DS.Spacing.sm)
         .glassTile()
+    }
+    
+    /// Fixed-width spend/token columns keep decimal points and unit suffixes
+    /// aligned from row to row.
+    private func metricRow(
+        label: String,
+        spend: Double,
+        tokens: Int,
+        compact: Bool = false,
+        secondary: Bool = false
+    ) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: compact ? 9.5 : 10, weight: .medium))
+                .foregroundColor(DS.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+            Spacer(minLength: 2)
+            Text(formatSpend(spend))
+                .font(.system(size: compact ? 9.5 : 10.5, weight: .semibold))
+                .monospacedDigit()
+                .foregroundColor(secondary ? DS.textSecondary : .primary)
+                .frame(width: 42, alignment: .trailing)
+            Text(formatTokenCount(tokens))
+                .font(.system(size: compact ? 9.5 : 10.5, weight: .semibold))
+                .monospacedDigit()
+                .foregroundColor(secondary ? DS.textSecondary : .primary)
+                .frame(width: 84, alignment: .trailing)
+        }
     }
     
     private func formatSpend(_ usd: Double) -> String {
@@ -1050,7 +1073,7 @@ struct DetailedTrendPopoverView: View {
                 MetricCard(
                     title: L10n.peakDay,
                     value: peakPoint != nil && (peakPoint?.tokens ?? 0) > 0 ? "\(peakPoint!.dateLabel): \(formatTokens(peakPoint!.tokens))" : "-",
-                    color: .orange
+                    color: .primary
                 )
             }
             
@@ -1332,7 +1355,7 @@ struct CleanProgressBar: View {
             if !resetInfo.isEmpty && resetInfo != "-" {
                 HStack {
                     Text(resetInfo)
-                        .font(.system(size: 9))
+                        .font(.system(size: 9.5))
                         .foregroundColor(DS.textSecondary)
                     Spacer()
                 }
@@ -1349,6 +1372,9 @@ struct CleanProgressBar: View {
                 .stroke(isSelectedForIcon ? Color.accentColor.opacity(0.32) : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title): \(formattedPercent)")
+        .accessibilityValue(resetInfo == "-" ? "" : resetInfo)
     }
 }
 
@@ -1535,8 +1561,8 @@ struct GenericAISectionView: View {
                                 .foregroundColor(.green)
                         } else {
                             Text(L10n.isKorean ? "키 등록 필요" : "Setup Required")
-                                .font(.system(size: 9))
-                                .foregroundColor(.orange)
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.accentColor)
                         }
                     }
                     

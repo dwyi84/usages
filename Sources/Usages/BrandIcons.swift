@@ -74,6 +74,20 @@ public enum BrandIcon: String {
         default: return "circle.fill"
         }
     }
+    
+    var accessibilityName: String {
+        switch self {
+        case .openCode: return "OpenCode"
+        case .googleAI: return "Google AI"
+        case .openRouter: return "OpenRouter"
+        case .codex: return "Codex"
+        case .claude: return "Claude"
+        case .cursor: return "Cursor"
+        case .copilot: return "GitHub Copilot"
+        case .perplexity: return "Perplexity"
+        case .deepseek: return "DeepSeek"
+        }
+    }
 }
 
 private final class BrandImageCache {
@@ -117,5 +131,6 @@ public struct BrandIconView: View {
             }
         }
         .frame(width: size, height: size)
+        .accessibilityLabel(brand.accessibilityName)
     }
 }

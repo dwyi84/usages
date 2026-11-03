@@ -191,6 +191,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         
         button.image = img
         button.toolTip = tooltips.joined(separator: "\n")
+        button.setAccessibilityLabel(tooltips.joined(separator: ", "))
     }
     
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
