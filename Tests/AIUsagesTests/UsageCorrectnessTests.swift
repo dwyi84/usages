@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import AppKit
+import SwiftUI
 @testable import AIUsages
 
 @Suite("Usage correctness")
@@ -117,7 +118,7 @@ struct UsageCorrectnessTests {
     @Test("Embedded brand SVGs render as images")
     func brandMarksRender() {
         let brands: [BrandIcon] = [
-            .openCode, .googleAI, .openRouter, .claude,
+            .openCode, .googleAI, .openRouter, .codex, .claude,
             .cursor, .copilot, .perplexity, .deepseek
         ]
         for brand in brands {
@@ -128,5 +129,26 @@ struct UsageCorrectnessTests {
             let data = Data(svg.utf8)
             #expect(NSImage(data: data) != nil, "Could not render \(brand.rawValue)")
         }
+    }
+    
+    @Test("Brand icon views render with their configured colors")
+    @MainActor
+    func brandIconViewsRender() {
+        let view = HStack(spacing: 16) {
+            BrandIconView(.googleAI, size: 32)
+            BrandIconView(.codex, size: 32)
+            BrandIconView(.claude, size: 32)
+            BrandIconView(.openCode, size: 32)
+        }
+        .padding(12)
+        .background(Color.white)
+        
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        guard let image = renderer.nsImage else {
+            Issue.record("ImageRenderer returned nil")
+            return
+        }
+        #expect(image.size.width > 0 && image.size.height > 0)
     }
 }
