@@ -19,6 +19,14 @@ let package = Package(
             swiftSettings: [
                 .swiftLanguageMode(.v5)
             ]
+        ),
+        .testTarget(
+            name: "AIUsagesTests",
+            dependencies: ["AIUsages"],
+            path: "Tests/AIUsagesTests",
+            swiftSettings: [
+                .swiftLanguageMode(.v5)
+            ]
         )
     ]
 )

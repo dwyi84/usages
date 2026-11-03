@@ -496,7 +496,7 @@ struct GoogleAISectionView: View {
                         }
                         CleanProgressBar(
                             title: L10n.geminiModels,
-                            percent: groups.geminiFiveHourRemainingPercent,
+                            percent: groups.geminiFiveHourRemainingPercent ?? 0.0,
                             resetInfo: groups.geminiFiveHourResetString,
                             isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_gemini_5h",
                             onSelect: {
@@ -505,7 +505,7 @@ struct GoogleAISectionView: View {
                         )
                         CleanProgressBar(
                             title: L10n.claudeAndGpt,
-                            percent: groups.claudeFiveHourRemainingPercent,
+                            percent: groups.claudeFiveHourRemainingPercent ?? 0.0,
                             resetInfo: groups.claudeFiveHourResetString,
                             isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_claude_5h",
                             onSelect: {
@@ -524,7 +524,7 @@ struct GoogleAISectionView: View {
                         }
                         CleanProgressBar(
                             title: L10n.geminiModels,
-                            percent: groups.geminiWeeklyRemainingPercent,
+                            percent: groups.geminiWeeklyRemainingPercent ?? 0.0,
                             resetInfo: groups.geminiWeeklyResetString,
                             isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_gemini_weekly",
                             onSelect: {
@@ -533,29 +533,32 @@ struct GoogleAISectionView: View {
                         )
                         CleanProgressBar(
                             title: L10n.claudeAndGpt,
-                            percent: groups.claudeWeeklyRemainingPercent,
+                            percent: groups.claudeWeeklyRemainingPercent ?? 0.0,
                             resetInfo: groups.claudeWeeklyResetString,
                             isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_claude_weekly",
                             onSelect: {
                                 settings.setSelectedMetricKey(for: "google_ai", key: "google_claude_weekly")
                             }
                         )
-                        CleanProgressBar(
-                            title: L10n.geminiArgon,
-                            percent: groups.argonWeeklyRemainingPercent,
-                            resetInfo: groups.argonWeeklyResetString,
-                            isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_argon_weekly",
-                            onSelect: {
-                                settings.setSelectedMetricKey(for: "google_ai", key: "google_argon_weekly")
-                            }
-                        )
+                        // Argon is only present for accounts that have that group.
+                        if groups.argonWeeklyRemainingPercent != nil {
+                            CleanProgressBar(
+                                title: L10n.geminiArgon,
+                                percent: groups.argonWeeklyRemainingPercent ?? 0.0,
+                                resetInfo: groups.argonWeeklyResetString,
+                                isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_argon_weekly",
+                                onSelect: {
+                                    settings.setSelectedMetricKey(for: "google_ai", key: "google_argon_weekly")
+                                }
+                            )
+                        }
                         
                         Divider().padding(.vertical, 1)
                         
                         // 3. 월간 리셋
                         CleanProgressBar(
                             title: L10n.monthly,
-                            percent: groups.overallRemainingPercent > 0 ? groups.overallRemainingPercent : snapshot.remainingPercent,
+                            percent: groups.overallRemainingPercent,
                             resetInfo: groups.nextBillingDateString.isEmpty ? "-" : groups.nextBillingDateString,
                             isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_monthly",
                             onSelect: {
@@ -853,7 +856,7 @@ struct ProviderTrendView: View {
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.secondary)
                 Spacer()
-                Text("\(formatCurrency(trend.todaySpendUSD)) · \(formatTokenCount(trend.todayTokens))")
+                Text("\(formatSpend(trend.todaySpendUSD)) · \(formatTokenCount(trend.todayTokens))")
                     .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
             }
             
@@ -863,7 +866,7 @@ struct ProviderTrendView: View {
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.secondary)
                 Spacer()
-                Text("\(formatCurrency(trend.yesterdaySpendUSD)) · \(formatTokenCount(trend.yesterdayTokens))")
+                Text("\(formatSpend(trend.yesterdaySpendUSD)) · \(formatTokenCount(trend.yesterdayTokens))")
                     .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
             }
             
@@ -873,7 +876,7 @@ struct ProviderTrendView: View {
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.secondary)
                 Spacer()
-                Text("\(formatCurrency(trend.last30DaysSpendUSD)) · \(formatTokenCount(trend.last30DaysTokens))")
+                Text("\(formatSpend(trend.last30DaysSpendUSD)) · \(formatTokenCount(trend.last30DaysTokens))")
                     .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
             }
             
@@ -885,7 +888,7 @@ struct ProviderTrendView: View {
                     .font(.system(size: 8.5, weight: .medium))
                     .foregroundColor(.secondary)
                 Spacer()
-                Text("\(formatCurrency(trend.dailyAvgSpendUSD)) · \(formatTokenCount(trend.dailyAvgTokens))")
+                Text("\(formatSpend(trend.dailyAvgSpendUSD)) · \(formatTokenCount(trend.dailyAvgTokens))")
                     .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
                     .foregroundColor(.secondary)
             }
@@ -926,19 +929,21 @@ struct ProviderTrendView: View {
         .cornerRadius(6)
     }
     
-    private func formatCurrency(_ usd: Double) -> String {
+    private func formatSpend(_ usd: Double) -> String {
+        guard trend.costAvailable else { return "—" }
         return String(format: "$%.2f", usd)
     }
     
     private func formatTokenCount(_ count: Int) -> String {
+        let unit = trend.metricUnit.label
         if count >= 1_000_000_000 {
-            return String(format: "%.1fB tokens", Double(count) / 1_000_000_000.0)
+            return String(format: "%.1fB %@", Double(count) / 1_000_000_000.0, unit)
         } else if count >= 1_000_000 {
-            return String(format: "%.1fM tokens", Double(count) / 1_000_000.0)
+            return String(format: "%.1fM %@", Double(count) / 1_000_000.0, unit)
         } else if count >= 1_000 {
-            return String(format: "%.1fK tokens", Double(count) / 1_000.0)
+            return String(format: "%.1fK %@", Double(count) / 1_000.0, unit)
         } else {
-            return "\(count) tokens"
+            return "\(count) \(unit)"
         }
     }
 }
@@ -992,14 +997,14 @@ struct DetailedTrendPopoverView: View {
             // 4 Summary Metrics Cards
             HStack(spacing: 8) {
                 MetricCard(
-                    title: L10n.totalTokens,
+                    title: summary.metricUnit.title,
                     value: formatTokens(summary.last30DaysTokens),
                     color: .primary
                 )
                 
                 MetricCard(
                     title: L10n.isKorean ? "총 환산비용" : "Total Cost",
-                    value: String(format: "$%.2f", summary.last30DaysSpendUSD),
+                    value: summary.costAvailable ? String(format: "$%.2f", summary.last30DaysSpendUSD) : "—",
                     color: .green
                 )
                 
@@ -1028,12 +1033,12 @@ struct DetailedTrendPopoverView: View {
                             .font(.system(size: 10.5, weight: .bold))
                         Text("•")
                             .foregroundColor(.secondary)
-                        Text("\(formatTokens(pt.tokens)) tokens")
+                        Text("\(formatTokens(pt.tokens)) \(summary.metricUnit.label)")
                             .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                             .foregroundColor(.accentColor)
                         Text("•")
                             .foregroundColor(.secondary)
-                        Text(String(format: "$%.2f", pt.spendUSD))
+                        Text(summary.costAvailable ? String(format: "$%.2f", pt.spendUSD) : "—")
                             .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                             .foregroundColor(.green)
                     }

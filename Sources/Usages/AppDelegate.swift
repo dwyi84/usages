@@ -30,6 +30,28 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             await usageManager.refreshAll()
             UpdaterViewModel.shared.checkForUpdates() // CopyNinja 스타일 자동 업데이트 확인
         }
+        
+        // Refresh immediately when the Mac wakes up and when the local calendar
+        // day changes. Without this the app could keep showing yesterday's
+        // "today" buckets and stale reset countdowns after sleeping overnight.
+        NotificationCenter.default.addObserver(
+            forName: .NSCalendarDayChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                await self?.usageManager.refreshAll()
+            }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                await self?.usageManager.refreshAll()
+            }
+        }
     }
     
     private func setupMainMenu() {
@@ -113,19 +135,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 let resetStr: String
                 switch key {
                 case "google_claude_5h":
-                    pct = g.googleGroups.claudeFiveHourRemainingPercent
+                    pct = g.googleGroups.claudeFiveHourRemainingPercent ?? g.googleGroups.overallRemainingPercent
                     label = L10n.isKorean ? "5시간(Claude&GPT)" : "5h (Claude&GPT)"
                     resetStr = g.googleGroups.claudeFiveHourResetString
                 case "google_gemini_weekly":
-                    pct = g.googleGroups.geminiWeeklyRemainingPercent
+                    pct = g.googleGroups.geminiWeeklyRemainingPercent ?? g.googleGroups.overallRemainingPercent
                     label = L10n.isKorean ? "주간(Gemini)" : "Weekly (Gemini)"
                     resetStr = g.googleGroups.geminiWeeklyResetString
                 case "google_claude_weekly":
-                    pct = g.googleGroups.claudeWeeklyRemainingPercent
+                    pct = g.googleGroups.claudeWeeklyRemainingPercent ?? g.googleGroups.overallRemainingPercent
                     label = L10n.isKorean ? "주간(Claude&GPT)" : "Weekly (Claude&GPT)"
                     resetStr = g.googleGroups.claudeWeeklyResetString
                 case "google_argon_weekly":
-                    pct = g.googleGroups.argonWeeklyRemainingPercent
+                    pct = g.googleGroups.argonWeeklyRemainingPercent ?? g.googleGroups.overallRemainingPercent
                     label = L10n.isKorean ? "주간(Argon)" : "Weekly (Argon)"
                     resetStr = g.googleGroups.argonWeeklyResetString
                 case "google_monthly":
@@ -133,14 +155,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                     label = L10n.isKorean ? "월간" : "Monthly"
                     resetStr = g.googleGroups.nextBillingDateString.isEmpty ? "-" : g.googleGroups.nextBillingDateString
                 default: // "google_gemini_5h"
-                    pct = g.googleGroups.geminiFiveHourRemainingPercent
+                    pct = g.googleGroups.geminiFiveHourRemainingPercent ?? g.googleGroups.overallRemainingPercent
                     label = L10n.isKorean ? "5시간(Gemini)" : "5h (Gemini)"
                     resetStr = g.googleGroups.geminiFiveHourResetString
                 }
                 let status: GaugeStatus = pct <= 15 ? .critical : (pct <= 35 ? .warning : .normal)
                 gaugeItems.append(.init(percent: pct, status: status))
                 tooltips.append("· Google AI Pro (\(label)): \(Int(pct))% \(L10n.remaining) (\(resetStr))")
-                nearestBillingDays = min(nearestBillingDays, g.daysUntilBilling)
+                // Only include Google's billing countdown when the user has
+                // configured a reset day; otherwise daysUntilBilling is 0 and
+                // would permanently show the "reset imminent" dot.
+                if settings.googleBillingDayOfMonth > 0 {
+                    nearestBillingDays = min(nearestBillingDays, g.daysUntilBilling)
+                }
             case "openrouter":
                 let or = usageManager.openRouterSnapshot
                 guard or.isConnected else { continue }

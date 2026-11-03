@@ -9,7 +9,7 @@ INSTALL_DIR   ?= /Applications
 SWIFT         := swift
 VERSION       := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
 
-.PHONY: all build bundle zip run install uninstall clean
+.PHONY: all build bundle zip run install uninstall clean test
 
 all: bundle
 
@@ -20,6 +20,16 @@ build:
 		exit 1; \
 	fi
 	$(SWIFT) build -c $(CONFIGURATION)
+
+## Run the correctness tests. CommandLineTools-only installs need an explicit
+## plugin path for Swift Testing; Xcode installs work without it.
+test:
+	@PLUGIN_DIR="$$(find /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing /Applications/Xcode.app -name 'libTestingMacros.dylib' -maxdepth 12 2>/dev/null | head -1 | xargs -I{} dirname {} 2>/dev/null)"; \
+	if [ -n "$$PLUGIN_DIR" ]; then \
+		$(SWIFT) test -Xswiftc -plugin-path -Xswiftc "$$PLUGIN_DIR"; \
+	else \
+		$(SWIFT) test; \
+	fi
 
 ## Assemble dist/AI Usages.app.
 bundle: build

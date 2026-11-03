@@ -208,37 +208,62 @@ public struct OpenCodeWindows {
 }
 
 // MARK: - Google AI Pro Detail Groups (Gemini, Claude & GPT, Argon)
+//
+// Percent fields are optional on purpose. The quota API only returns the groups
+// that exist for the signed-in account (Argon is frequently absent). A missing
+// group must not be treated as "0% remaining", otherwise `overallRemainingPercent`
+// collapses to 0 and the menu bar shows a false critical state.
 public struct GoogleAIGroupLimits {
-    public var geminiWeeklyRemainingPercent: Double = 0.0
+    public var geminiWeeklyRemainingPercent: Double? = nil
     public var geminiWeeklyResetString: String = "-"
-    public var geminiFiveHourRemainingPercent: Double = 0.0
+    public var geminiFiveHourRemainingPercent: Double? = nil
     public var geminiFiveHourResetString: String = "-"
     
-    public var claudeWeeklyRemainingPercent: Double = 0.0
+    public var claudeWeeklyRemainingPercent: Double? = nil
     public var claudeWeeklyResetString: String = "-"
-    public var claudeFiveHourRemainingPercent: Double = 0.0
+    public var claudeFiveHourRemainingPercent: Double? = nil
     public var claudeFiveHourResetString: String = "-"
     
-    public var argonWeeklyRemainingPercent: Double = 0.0
+    public var argonWeeklyRemainingPercent: Double? = nil
     public var argonWeeklyResetString: String = "-"
     
+    /// Remaining percentage across the groups the account actually has.
+    /// Weekly limits are preferred; if none are reported, fall back to the
+    /// 5-hour windows so a partial response still produces a sensible value.
     public var overallRemainingPercent: Double {
-        return min(argonWeeklyRemainingPercent, geminiWeeklyRemainingPercent)
+        let weekly = [
+            geminiWeeklyRemainingPercent,
+            claudeWeeklyRemainingPercent,
+            argonWeeklyRemainingPercent
+        ].compactMap { $0 }
+        if let minimum = weekly.min() {
+            return minimum
+        }
+        let fiveHour = [geminiFiveHourRemainingPercent, claudeFiveHourRemainingPercent].compactMap { $0 }
+        return fiveHour.min() ?? 0.0
+    }
+    
+    public var hasAnyKnownQuota: Bool {
+        geminiWeeklyRemainingPercent != nil
+            || geminiFiveHourRemainingPercent != nil
+            || claudeWeeklyRemainingPercent != nil
+            || claudeFiveHourRemainingPercent != nil
+            || argonWeeklyRemainingPercent != nil
     }
     
     public var nextBillingDateString: String = ""
     public var daysUntilBilling: Int = 0
     
     public init(
-        geminiWeeklyRemainingPercent: Double = 0.0,
+        geminiWeeklyRemainingPercent: Double? = nil,
         geminiWeeklyResetString: String = "-",
-        geminiFiveHourRemainingPercent: Double = 0.0,
+        geminiFiveHourRemainingPercent: Double? = nil,
         geminiFiveHourResetString: String = "-",
-        claudeWeeklyRemainingPercent: Double = 0.0,
+        claudeWeeklyRemainingPercent: Double? = nil,
         claudeWeeklyResetString: String = "-",
-        claudeFiveHourRemainingPercent: Double = 0.0,
+        claudeFiveHourRemainingPercent: Double? = nil,
         claudeFiveHourResetString: String = "-",
-        argonWeeklyRemainingPercent: Double = 0.0,
+        argonWeeklyRemainingPercent: Double? = nil,
         argonWeeklyResetString: String = "-",
         nextBillingDateString: String = "",
         daysUntilBilling: Int = 0
@@ -326,6 +351,25 @@ public struct DailyUsagePoint: Identifiable, Sendable {
     }
 }
 
+public enum UsageMetricUnit: String, Sendable {
+    case tokens
+    case steps
+    
+    public var label: String {
+        switch self {
+        case .tokens: return L10n.isKorean ? "토큰" : "tokens"
+        case .steps: return L10n.isKorean ? "스텝" : "steps"
+        }
+    }
+    
+    public var title: String {
+        switch self {
+        case .tokens: return L10n.totalTokens
+        case .steps: return L10n.isKorean ? "총 스텝" : "Total Steps"
+        }
+    }
+}
+
 public struct UsageTrendSummary: Sendable {
     public var todaySpendUSD: Double
     public var todayTokens: Int
@@ -343,6 +387,11 @@ public struct UsageTrendSummary: Sendable {
     public var peakTokens: Int
     public var recentActivityLog: String
     
+    // Google AI Pro only exposes step counts (no token/cost API), so its trend
+    // reports steps and hides monetary values instead of fabricating them.
+    public var metricUnit: UsageMetricUnit
+    public var costAvailable: Bool
+    
     public init(
         todaySpendUSD: Double = 0.0,
         todayTokens: Int = 0,
@@ -356,7 +405,9 @@ public struct UsageTrendSummary: Sendable {
         dailyAvgTokens: Int = 0,
         peakDateLabel: String = "",
         peakTokens: Int = 0,
-        recentActivityLog: String = ""
+        recentActivityLog: String = "",
+        metricUnit: UsageMetricUnit = .tokens,
+        costAvailable: Bool = true
     ) {
         self.todaySpendUSD = todaySpendUSD
         self.todayTokens = todayTokens
@@ -371,6 +422,8 @@ public struct UsageTrendSummary: Sendable {
         self.peakDateLabel = peakDateLabel
         self.peakTokens = peakTokens
         self.recentActivityLog = recentActivityLog
+        self.metricUnit = metricUnit
+        self.costAvailable = costAvailable
     }
 }
 

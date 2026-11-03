@@ -32,14 +32,15 @@ public final class OpenRouterProvider: @unchecked Sendable {
             
             let balance = credits?.balance ?? 0.0
             let trend = buildTrendSummary(activityRows: activityRows, keyInfo: keyInfo)
+            let monthSpend = keyInfo?.usageMonthly ?? trend.last30DaysSpendUSD
             
             let snapshot = TokenCostSnapshot(
                 providerId: "openrouter",
                 providerName: "OpenRouter",
                 balanceUSD: balance,
                 todaySpendUSD: trend.todaySpendUSD,
-                monthSpendUSD: trend.last30DaysSpendUSD,
-                totalTokens: trend.last30DaysTokens,
+                monthSpendUSD: monthSpend,
+                totalTokens: keyInfo?.lifetimeTokens ?? trend.last30DaysTokens,
                 promptTokens: keyInfo?.promptTokens ?? 0,
                 completionTokens: keyInfo?.completionTokens ?? 0,
                 cachedTokens: 0,
@@ -69,11 +70,15 @@ public final class OpenRouterProvider: @unchecked Sendable {
     }
     
     private struct KeyInfoResult {
-        let usageToday: Double
+        let usageDaily: Double
+        let usageWeekly: Double
+        let usageMonthly: Double
         let usageTotal: Double
         let promptTokens: Int
         let completionTokens: Int
         let requestsCount: Int
+        
+        var lifetimeTokens: Int { promptTokens + completionTokens }
     }
     
     private func fetchCredits(key: String) async throws -> CreditsResult? {
@@ -108,19 +113,33 @@ public final class OpenRouterProvider: @unchecked Sendable {
         
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let dataDict = json["data"] as? [String: Any] {
-            let usageTotal = (dataDict["usage"] as? Double) ?? 0.0
-            let usageDaily = (dataDict["usage_daily"] as? Double) ?? (usageTotal * 0.15) // 추정 or 제공값
-            let prompt = (dataDict["prompt_tokens"] as? Int) ?? 0
-            let comp = (dataDict["completion_tokens"] as? Int) ?? 0
+            let usageTotal = number(dataDict["usage"]) ?? 0.0
+            // These are real fields on /api/v1/key. Never invent a daily value
+            // (the previous `usageTotal * 0.15` fallback fabricated usage).
+            let usageDaily = number(dataDict["usage_daily"]) ?? 0.0
+            let usageWeekly = number(dataDict["usage_weekly"]) ?? 0.0
+            let usageMonthly = number(dataDict["usage_monthly"]) ?? 0.0
+            let prompt = Int(number(dataDict["prompt_tokens"]) ?? 0)
+            let comp = Int(number(dataDict["completion_tokens"]) ?? 0)
             
             return KeyInfoResult(
-                usageToday: usageDaily,
+                usageDaily: usageDaily,
+                usageWeekly: usageWeekly,
+                usageMonthly: usageMonthly,
                 usageTotal: usageTotal,
                 promptTokens: prompt,
                 completionTokens: comp,
                 requestsCount: 0
             )
         }
+        return nil
+    }
+    
+    private func number(_ value: Any?) -> Double? {
+        if let d = value as? Double { return d }
+        if let i = value as? Int { return Double(i) }
+        if let n = value as? NSNumber { return n.doubleValue }
+        if let s = value as? String { return Double(s) }
         return nil
     }
     
@@ -158,14 +177,19 @@ public final class OpenRouterProvider: @unchecked Sendable {
     }
     
     private func buildTrendSummary(activityRows: [ActivityRow], keyInfo: KeyInfoResult?) -> UsageTrendSummary {
-        let calendar = Calendar(identifier: .gregorian)
+        // OpenRouter's activity payload is keyed by UTC dates and is only
+        // available to management keys. Use UTC consistently for both the
+        // bucket keys and the chart labels; the previous mix (UTC data with
+        // local labels) could show yesterday's data under today's label.
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let now = Date()
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(secondsFromGMT: 0) // UTC
+        formatter.timeZone = utcCalendar.timeZone
         
         let todayStr = formatter.string(from: now)
-        let yesterdayDate = calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        let yesterdayDate = utcCalendar.date(byAdding: .day, value: -1, to: now) ?? now
         let yesterdayStr = formatter.string(from: yesterdayDate)
         
         var spendByDate: [String: Double] = [:]
@@ -176,13 +200,9 @@ public final class OpenRouterProvider: @unchecked Sendable {
             tokensByDate[row.date, default: 0] += row.tokens
         }
         
-        var todaySpend = spendByDate[todayStr] ?? 0.0
-        var todayTokens = tokensByDate[todayStr] ?? 0
-        if todaySpend == 0, let key = keyInfo, key.usageToday > 0 {
-            todaySpend = key.usageToday
-            todayTokens = key.promptTokens + key.completionTokens
-        }
-        
+        let hasActivity = !activityRows.isEmpty
+        let todaySpend = spendByDate[todayStr] ?? keyInfo?.usageDaily ?? 0.0
+        let todayTokens = tokensByDate[todayStr] ?? 0
         let yesterdaySpend = spendByDate[yesterdayStr] ?? 0.0
         let yesterdayTokens = tokensByDate[yesterdayStr] ?? 0
         
@@ -193,10 +213,10 @@ public final class OpenRouterProvider: @unchecked Sendable {
         
         let labelFormatter = DateFormatter()
         labelFormatter.dateFormat = "MM/dd"
-        labelFormatter.timeZone = TimeZone.current
+        labelFormatter.timeZone = utcCalendar.timeZone
         
         for dayOffset in (0..<30).reversed() {
-            if let targetDate = calendar.date(byAdding: .day, value: -dayOffset, to: now) {
+            if let targetDate = utcCalendar.date(byAdding: .day, value: -dayOffset, to: now) {
                 let dStr = formatter.string(from: targetDate)
                 let lStr = labelFormatter.string(from: targetDate)
                 let spend = spendByDate[dStr] ?? 0.0
@@ -210,9 +230,26 @@ public final class OpenRouterProvider: @unchecked Sendable {
             }
         }
         
-        if last30DaysSpend == 0, let key = keyInfo, key.usageTotal > 0 {
-            last30DaysSpend = key.usageTotal
-            last30DaysTokens = max(todayTokens, key.promptTokens + key.completionTokens)
+        // Without a management key the activity endpoint is unavailable. Use
+        // the daily/monthly counters from /api/v1/key instead, and make sure the
+        // "today" bar agrees with the "today" summary. Never substitute the
+        // lifetime counter for a 30-day total.
+        if !hasActivity {
+            var sum = keyInfo?.usageMonthly ?? 0.0
+            if sum <= 0 { sum = keyInfo?.usageWeekly ?? 0.0 }
+            if sum <= 0 { sum = todaySpend }
+            last30DaysSpend = sum
+            last30DaysTokens = todayTokens
+            if !dailyPoints.isEmpty {
+                let last = dailyPoints.count - 1
+                dailyPoints[last] = DailyUsagePoint(
+                    dateString: dailyPoints[last].dateString,
+                    dateLabel: dailyPoints[last].dateLabel,
+                    spendUSD: todaySpend,
+                    tokens: todayTokens,
+                    normalized: 0.0
+                )
+            }
         }
         
         let maxTokens = max(dailyTokenCounts.max() ?? 1, 1)

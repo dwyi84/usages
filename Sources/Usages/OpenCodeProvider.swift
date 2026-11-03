@@ -84,57 +84,58 @@ public final class OpenCodeProvider: @unchecked Sendable {
             
             guard httpResp.statusCode == 200 else { return nil }
             
-            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let usageObj = json["usage"] as? [String: Any] {
-                
-                let rolling = usageObj["rolling"] as? [String: Any]
-                let weekly = usageObj["weekly"] as? [String: Any]
-                let monthly = usageObj["monthly"] as? [String: Any]
-                
-                let rollUsed = (rolling?["percent"] as? Double) ?? ((rolling?["percent"] as? Int).map(Double.init) ?? 5.0)
-                let weekUsed = (weekly?["percent"] as? Double) ?? ((weekly?["percent"] as? Int).map(Double.init) ?? 2.0)
-                let monthUsed = (monthly?["percent"] as? Double) ?? ((monthly?["percent"] as? Int).map(Double.init) ?? 64.0)
-                
-                let rollRem = max(0.0, 100.0 - rollUsed)
-                let weekRem = max(0.0, 100.0 - weekUsed)
-                let monthRem = max(0.0, 100.0 - monthUsed)
-                
-                let rollReset = formatCountdown(isoString: rolling?["resetsAt"] as? String, fallbackDays: 0, fallbackHours: 3, fallbackMins: 37)
-                let weekReset = formatCountdown(isoString: weekly?["resetsAt"] as? String, fallbackDays: 6, fallbackHours: 15, fallbackMins: 0)
-                let monthReset = formatCountdown(isoString: monthly?["resetsAt"] as? String, fallbackDays: 6, fallbackHours: 13, fallbackMins: 0)
-                let daysRem = calculateDaysRemaining(isoString: monthly?["resetsAt"] as? String, fallback: 6)
-                
-                let fiveHourStr = L10n.isKorean ? "\(rollReset) 후 리셋" : "Resets in \(rollReset)"
-                let weeklyStr = L10n.isKorean ? "\(weekReset) 후 리셋" : "Resets in \(weekReset)"
-                let monthlyStr = L10n.isKorean ? "\(monthReset) 후 리셋" : "Resets in \(monthReset)"
-                let billingStr = L10n.isKorean ? "\(monthReset) 후 리셋" : "Resets in \(monthReset)"
-                
-                let windows = OpenCodeWindows(
-                    fiveHourRemainingPercent: rollRem,
-                    fiveHourResetString: fiveHourStr,
-                    weeklyRemainingPercent: weekRem,
-                    weeklyResetString: weeklyStr,
-                    monthlyRemainingPercent: monthRem,
-                    monthlyResetString: monthlyStr,
-                    nextBillingDateString: billingStr,
-                    daysUntilBilling: daysRem
-                )
-                
-                let trend = fetchLocalUsageTrend()
-                
-                return ServiceUsageSnapshot(
-                    service: .openCode,
-                    planName: "OpenCode Go",
-                    remainingPercent: monthRem,
-                    billingDateString: billingStr,
-                    daysUntilBilling: daysRem,
-                    status: monthRem <= 15 ? .critical : (monthRem <= 35 ? .warning : .normal),
-                    lastUpdated: Date(),
-                    isAvailable: true,
-                    openCodeWindows: windows,
-                    trendSummary: trend
-                )
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let usageObj = json["usage"] as? [String: Any],
+                  let rolling = usageObj["rolling"] as? [String: Any],
+                  let weekly = usageObj["weekly"] as? [String: Any],
+                  let monthly = usageObj["monthly"] as? [String: Any],
+                  let rollUsed = number(rolling["percent"]),
+                  let weekUsed = number(weekly["percent"]),
+                  let monthUsed = number(monthly["percent"]) else {
+                // Never invent percentages. A partial/malformed payload must fall
+                // through to the cached snapshot instead of showing fake data.
+                return nil
             }
+            
+            let rollRem = max(0.0, 100.0 - rollUsed)
+            let weekRem = max(0.0, 100.0 - weekUsed)
+            let monthRem = max(0.0, 100.0 - monthUsed)
+            
+            let rollReset = formatCountdown(isoString: rolling["resetsAt"] as? String)
+            let weekReset = formatCountdown(isoString: weekly["resetsAt"] as? String)
+            let monthReset = formatCountdown(isoString: monthly["resetsAt"] as? String)
+            let daysRem = calculateDaysRemaining(isoString: monthly["resetsAt"] as? String)
+            
+            let fiveHourStr = resetLabel(rollReset)
+            let weeklyStr = resetLabel(weekReset)
+            let monthlyStr = resetLabel(monthReset)
+            let billingStr = monthlyStr
+            
+            let windows = OpenCodeWindows(
+                fiveHourRemainingPercent: rollRem,
+                fiveHourResetString: fiveHourStr,
+                weeklyRemainingPercent: weekRem,
+                weeklyResetString: weeklyStr,
+                monthlyRemainingPercent: monthRem,
+                monthlyResetString: monthlyStr,
+                nextBillingDateString: billingStr,
+                daysUntilBilling: daysRem
+            )
+            
+            let trend = fetchLocalUsageTrend()
+            
+            return ServiceUsageSnapshot(
+                service: .openCode,
+                planName: "OpenCode Go",
+                remainingPercent: monthRem,
+                billingDateString: billingStr,
+                daysUntilBilling: daysRem,
+                status: monthRem <= 15 ? .critical : (monthRem <= 35 ? .warning : .normal),
+                lastUpdated: Date(),
+                isAvailable: true,
+                openCodeWindows: windows,
+                trendSummary: trend
+            )
         } catch {}
         
         return nil
@@ -147,6 +148,7 @@ public final class OpenCodeProvider: @unchecked Sendable {
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, 1_000)
         
         var stmt: OpaquePointer?
         let query = "SELECT value FROM credential WHERE integration_id = 'opencode' OR label = 'Default' LIMIT 1;"
@@ -163,20 +165,22 @@ public final class OpenCodeProvider: @unchecked Sendable {
         return nil
     }
     
-    private func formatCountdown(isoString: String?, fallbackDays: Int, fallbackHours: Int, fallbackMins: Int) -> String {
-        let days: Int
-        let hours: Int
-        let mins: Int
-        if let str = isoString, let date = ISO8601DateFormatter().date(from: str) {
-            let diff = max(0, Int(date.timeIntervalSinceNow))
-            days = diff / 86400
-            hours = (diff % 86400) / 3600
-            mins = (diff % 3600) / 60
-        } else {
-            days = fallbackDays
-            hours = fallbackHours
-            mins = fallbackMins
+    private func number(_ value: Any?) -> Double? {
+        if let d = value as? Double { return d }
+        if let i = value as? Int { return Double(i) }
+        if let n = value as? NSNumber { return n.doubleValue }
+        if let s = value as? String { return Double(s) }
+        return nil
+    }
+    
+    private func formatCountdown(isoString: String?) -> String {
+        guard let date = ISO8601Parser.date(from: isoString) else {
+            return "-"
         }
+        let diff = max(0, Int(date.timeIntervalSinceNow))
+        let days = diff / 86400
+        let hours = (diff % 86400) / 3600
+        let mins = (diff % 3600) / 60
         
         if L10n.isKorean {
             if days > 0 {
@@ -191,9 +195,16 @@ public final class OpenCodeProvider: @unchecked Sendable {
         }
     }
     
-    private func calculateDaysRemaining(isoString: String?, fallback: Int) -> Int {
-        guard let str = isoString, let date = ISO8601DateFormatter().date(from: str) else {
-            return fallback
+    private func resetLabel(_ countdown: String) -> String {
+        guard countdown != "-" else { return "-" }
+        return L10n.isKorean ? "\(countdown) 후 리셋" : "Resets in \(countdown)"
+    }
+    
+    private func calculateDaysRemaining(isoString: String?) -> Int {
+        guard let date = ISO8601Parser.date(from: isoString) else {
+            // Unknown reset date: return a large value so the menu-bar "reset
+            // imminent" dot is not shown for missing data.
+            return 999
         }
         return max(0, Int(ceil(date.timeIntervalSinceNow / 86400.0)))
     }
@@ -205,14 +216,24 @@ public final class OpenCodeProvider: @unchecked Sendable {
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return UsageTrendSummary() }
         defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, 1_000)
         
+        // OpenCode's own `stats` command counts input + output + reasoning +
+        // cache read/write. Summing only input+output under-reported usage by
+        // roughly an order of magnitude (cache reads dominate real traffic).
         let query = """
         SELECT 
-            date(json_extract(data, '$.time.created') / 1000, 'unixepoch', 'localtime') as day,
+            date(time_created / 1000, 'unixepoch', 'localtime') as day,
             coalesce(sum(json_extract(data, '$.cost')), 0.0) as spend,
-            coalesce(sum(json_extract(data, '$.tokens.input') + json_extract(data, '$.tokens.output')), 0) as tokens
+            coalesce(sum(
+                coalesce(json_extract(data, '$.tokens.input'), 0) +
+                coalesce(json_extract(data, '$.tokens.output'), 0) +
+                coalesce(json_extract(data, '$.tokens.reasoning'), 0) +
+                coalesce(json_extract(data, '$.tokens.cache.read'), 0) +
+                coalesce(json_extract(data, '$.tokens.cache.write'), 0)
+            ), 0) as tokens
         FROM session_message 
-        WHERE json_extract(data, '$.time.created') IS NOT NULL
+        WHERE type = 'assistant' AND time_created >= ?
         GROUP BY day
         ORDER BY day DESC
         LIMIT 35;
@@ -221,6 +242,10 @@ public final class OpenCodeProvider: @unchecked Sendable {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return UsageTrendSummary() }
         defer { sqlite3_finalize(stmt) }
+        
+        // Bound the scan (the DB is large and grows constantly).
+        let cutoff = Int64(Date().addingTimeInterval(-35 * 86400).timeIntervalSince1970 * 1000)
+        sqlite3_bind_int64(stmt, 1, cutoff)
         
         var spendByDate: [String: Double] = [:]
         var tokensByDate: [String: Int] = [:]
@@ -297,8 +322,8 @@ public final class OpenCodeProvider: @unchecked Sendable {
         let logQuery = """
         SELECT coalesce(json_extract(data, '$.model.id'), 'opencode-go'), coalesce(json_extract(data, '$.cost'), 0.0)
         FROM session_message 
-        WHERE json_extract(data, '$.cost') > 0 
-        ORDER BY id DESC LIMIT 1;
+        WHERE type = 'assistant' AND json_extract(data, '$.cost') > 0 
+        ORDER BY time_created DESC LIMIT 1;
         """
         var logStmt: OpaquePointer?
         if sqlite3_prepare_v2(db, logQuery, -1, &logStmt, nil) == SQLITE_OK {

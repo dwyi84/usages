@@ -53,6 +53,11 @@ public final class GoogleAIProvider: @unchecked Sendable {
             return buildSnapshot(status: .normal)
         }
         
+        // REST가 429를 받아 rate limit 상태가 되었다면 agy 폴백도 건너뛴다.
+        if let until = rateLimitUntil, Date() < until {
+            return buildSnapshot(status: .rateLimited)
+        }
+        
         // 2. REST 실패 시 로컬 agy CLI 프로세스 폴백 시도
         if let cliLimits = await fetchViaAgyCli() {
             cachedLimits = cliLimits
@@ -61,7 +66,7 @@ public final class GoogleAIProvider: @unchecked Sendable {
         }
         
         // 3. 둘 다 실패 시 이전 캐시가 있으면 유지, 없으면 미감지 반환
-        if lastAgyFullFetchDate != nil || cachedLimits.geminiWeeklyRemainingPercent > 0 {
+        if lastAgyFullFetchDate != nil || cachedLimits.hasAnyKnownQuota {
             return buildSnapshot(status: .warning)
         }
         
@@ -79,12 +84,16 @@ public final class GoogleAIProvider: @unchecked Sendable {
         )
     }
     
-    public static func calculateNextBilling(dayOfMonth: Int) -> (dateString: String, daysRemaining: Int) {
+    public static func calculateNextBilling(
+        dayOfMonth: Int,
+        now: Date = Date(),
+        calendar baseCalendar: Calendar = Calendar(identifier: .gregorian)
+    ) -> (dateString: String, daysRemaining: Int) {
         guard dayOfMonth >= 1 && dayOfMonth <= 31 else {
             return ("", 0)
         }
-        let calendar = Calendar.current
-        let now = Date()
+        let calendar = baseCalendar
+        
         let currentDay = calendar.component(.day, from: now)
         let currentMonth = calendar.component(.month, from: now)
         let currentYear = calendar.component(.year, from: now)
@@ -92,6 +101,9 @@ public final class GoogleAIProvider: @unchecked Sendable {
         var targetYear = currentYear
         var targetMonth = currentMonth
         
+        // If the configured billing day already passed this month, the next
+        // occurrence is next month. On the billing day itself we keep showing
+        // "today" (the renewal time-of-day is not exposed by Google).
         if dayOfMonth < currentDay {
             targetMonth += 1
             if targetMonth > 12 {
@@ -100,20 +112,16 @@ public final class GoogleAIProvider: @unchecked Sendable {
             }
         }
         
-        let dateComponents = DateComponents(year: targetYear, month: targetMonth, day: dayOfMonth)
-        var targetDate = calendar.date(from: dateComponents)
-        
-        // 월말 일수 초과 보정 (예: 2월 30일 등)
-        if targetDate == nil {
-            let comps = DateComponents(year: targetYear, month: targetMonth + 1, day: 0)
-            targetDate = calendar.date(from: comps)
-        }
-        
-        guard let billingDate = targetDate else {
+        guard let targetDate = billingDate(
+            year: targetYear,
+            month: targetMonth,
+            day: dayOfMonth,
+            calendar: calendar
+        ) else {
             return ("", 0)
         }
         
-        let diff = max(0, Int(billingDate.timeIntervalSince(now)))
+        let diff = max(0, Int(targetDate.timeIntervalSince(now)))
         let totalHours = diff / 3600
         let days = totalHours / 24
         let hours = totalHours % 24
@@ -130,6 +138,22 @@ public final class GoogleAIProvider: @unchecked Sendable {
             dateStr = isKorean ? "\(days)일 \(hours)시간 후 리셋 (매월 \(dayOfMonth)일)" : "Resets in \(days)d \(hours)h (\(dayOfMonth)th)"
         }
         return (dateStr, days)
+    }
+    
+    /// Builds the start of the configured billing day, clamping to the last day
+    /// of shorter months (e.g. day 31 in November must become Nov 30, not Dec 1).
+    private static func billingDate(
+        year: Int,
+        month: Int,
+        day: Int,
+        calendar: Calendar
+    ) -> Date? {
+        guard let firstOfMonth = calendar.date(from: DateComponents(year: year, month: month, day: 1)),
+              let dayRange = calendar.range(of: .day, in: .month, for: firstOfMonth) else {
+            return nil
+        }
+        let clampedDay = min(day, dayRange.count)
+        return calendar.date(from: DateComponents(year: year, month: month, day: clampedDay))
     }
 
     private func buildSnapshot(status: GaugeStatus) -> ServiceUsageSnapshot {
@@ -205,7 +229,7 @@ public final class GoogleAIProvider: @unchecked Sendable {
                     
                     if http.statusCode == 429 {
                         handleRateLimit(response: http)
-                        return cachedLimits
+                        return nil
                     }
                     
                     if (200..<300).contains(http.statusCode) {
@@ -259,7 +283,7 @@ public final class GoogleAIProvider: @unchecked Sendable {
             for b in g.buckets ?? [] {
                 let fraction = b.remainingFraction ?? 1.0
                 let pct = max(0.0, min(100.0, fraction * 100.0))
-                let countdown = formatCountdown(fraction: fraction, resetIso: b.resetTime)
+                let countdown = formatCountdown(resetIso: b.resetTime)
                 let bId = (b.bucketId ?? "").lowercased()
                 
                 if gName.contains("gemini models") || (!gName.contains("argon") && gName.contains("gemini")) {
@@ -418,7 +442,7 @@ public final class GoogleAIProvider: @unchecked Sendable {
             for bucket in group.buckets ?? [] {
                 let fraction = bucket.remaining_fraction ?? 1.0
                 let pct = max(0.0, min(100.0, fraction * 100.0))
-                let countdown = formatCountdown(fraction: fraction, resetIso: bucket.reset_time)
+                let countdown = formatCountdown(resetIso: bucket.reset_time)
                 let bId = bucket.id.lowercased()
                 
                 if gName.contains("gemini models") || (!gName.contains("argon") && gName.contains("gemini")) {
@@ -437,7 +461,7 @@ public final class GoogleAIProvider: @unchecked Sendable {
                         result.claudeFiveHourRemainingPercent = pct
                         result.claudeFiveHourResetString = countdown
                     }
-                } else if gName.contains("argon") {
+                } else if gName.contains("argon") || bId.contains("argon") {
                     result.argonWeeklyRemainingPercent = pct
                     result.argonWeeklyResetString = countdown
                 }
@@ -447,11 +471,8 @@ public final class GoogleAIProvider: @unchecked Sendable {
         return result
     }
     
-    private func formatCountdown(fraction: Double, resetIso: String?) -> String {
-        if fraction >= 1.0 {
-            return L10n.quotaAvailable
-        }
-        guard let isoStr = resetIso, let date = ISO8601DateFormatter().date(from: isoStr) else {
+    private func formatCountdown(resetIso: String?) -> String {
+        guard let date = ISO8601Parser.date(from: resetIso) else {
             return L10n.quotaAvailable
         }
         
@@ -481,13 +502,18 @@ public final class GoogleAIProvider: @unchecked Sendable {
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return UsageTrendSummary() }
         defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, 1_000)
         
+        // `last_modified_time` is stored as UTC ("...+00:00"). Grouping with
+        // plain date() bucketed usage by UTC day, while the UI compares against
+        // local calendar days. In KST every event between 00:00 and 08:59 was
+        // attributed to the previous day. Convert to local before grouping.
         let query = """
         SELECT 
-            date(last_modified_time) as day, 
+            date(last_modified_time, 'localtime') as day, 
             sum(step_count) as steps 
         FROM conversation_summaries 
-        WHERE date(last_modified_time) >= date('now', '-35 days') 
+        WHERE datetime(last_modified_time) >= datetime('now', '-35 days') 
         GROUP BY day 
         ORDER BY day ASC;
         """
@@ -515,16 +541,16 @@ public final class GoogleAIProvider: @unchecked Sendable {
         let yesterdayDate = calendar.date(byAdding: .day, value: -1, to: now) ?? now
         let yesterdayStr = formatter.string(from: yesterdayDate)
         
-        let tokensPerStep = 25_000
-        let costPerToken = 0.50 / 1_000_000.0
-        
+        // Antigravity only exposes step counts locally. Do not invent tokens or
+        // dollar amounts from a steps→tokens multiplier: that produced numbers
+        // that could never match any real usage figure. Report steps as steps.
         let todaySteps = stepsByDate[todayStr] ?? 0
-        let todayTokens = todaySteps * tokensPerStep
-        let todaySpend = Double(todayTokens) * costPerToken
+        let todayTokens = todaySteps
+        let todaySpend = 0.0
         
         let yesterdaySteps = stepsByDate[yesterdayStr] ?? 0
-        let yesterdayTokens = yesterdaySteps * tokensPerStep
-        let yesterdaySpend = Double(yesterdayTokens) * costPerToken
+        let yesterdayTokens = yesterdaySteps
+        let yesterdaySpend = 0.0
         
         var last30DaysSpend = 0.0
         var last30DaysTokens = 0
@@ -540,12 +566,10 @@ public final class GoogleAIProvider: @unchecked Sendable {
                 let dStr = formatter.string(from: targetDate)
                 let lStr = labelFormatter.string(from: targetDate)
                 let steps = stepsByDate[dStr] ?? 0
-                let tok = steps * tokensPerStep
-                let spend = Double(tok) * costPerToken
-                last30DaysSpend += spend
-                last30DaysTokens += tok
-                dailyTokenCounts.append(tok)
-                dailyPoints.append(DailyUsagePoint(dateString: dStr, dateLabel: lStr, spendUSD: spend, tokens: tok, normalized: 0.0))
+                last30DaysSpend += 0.0
+                last30DaysTokens += steps
+                dailyTokenCounts.append(steps)
+                dailyPoints.append(DailyUsagePoint(dateString: dStr, dateLabel: lStr, spendUSD: 0.0, tokens: steps, normalized: 0.0))
             } else {
                 dailyTokenCounts.append(0)
             }
@@ -598,7 +622,9 @@ public final class GoogleAIProvider: @unchecked Sendable {
             dailyAvgTokens: last30DaysTokens / 30,
             peakDateLabel: peakLabel,
             peakTokens: peakTok,
-            recentActivityLog: recentLog
+            recentActivityLog: recentLog,
+            metricUnit: .steps,
+            costAvailable: false
         )
     }
 }
