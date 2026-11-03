@@ -112,10 +112,10 @@ public enum BrandIcon: String {
     var tint: Color {
         switch self {
         case .googleAI: return Color(red: 0.26, green: 0.52, blue: 0.96)
-        case .claude: return Color(red: 0.85, green: 0.47, blue: 0.34)
-        case .perplexity: return Color(red: 0.12, green: 0.72, blue: 0.80)
+        case .claude: return Color(red: 0.80, green: 0.40, blue: 0.26)
+        case .perplexity: return Color(red: 0.05, green: 0.55, blue: 0.64)
         case .deepseek: return Color(red: 0.34, green: 0.53, blue: 1.0)
-        case .openRouter: return Color(red: 0.39, green: 0.45, blue: 0.55)
+        case .openRouter: return Color(red: 0.28, green: 0.33, blue: 0.41)
         case .codex: return Color(red: 0.06, green: 0.64, blue: 0.50)
         case .openCode, .cursor, .copilot: return .primary
         }
@@ -194,5 +194,30 @@ public struct BrandIconView: View {
         }
         .frame(width: size, height: size)
         .accessibilityLabel(brand.accessibilityName)
+    }
+}
+
+/// Icon in a small frosted tile, so light/multicolor marks stay legible on the
+/// popover's translucent background.
+public struct BrandIconChip: View {
+    let brand: BrandIcon
+    var size: CGFloat = 18
+    
+    public init(_ brand: BrandIcon, size: CGFloat = 18) {
+        self.brand = brand
+        self.size = size
+    }
+    
+    public var body: some View {
+        BrandIconView(brand, size: size)
+            .frame(width: size + 10, height: size + 10)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(.regularMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(DS.subtleStroke, lineWidth: 0.6)
+            )
     }
 }

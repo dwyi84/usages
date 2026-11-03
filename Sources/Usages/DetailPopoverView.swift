@@ -277,11 +277,14 @@ public struct DetailPopoverView: View {
             if uiState.showProviderSettings {
                 let columns = [
                     GridItem(.flexible(), spacing: 8),
+                    GridItem(.flexible(), spacing: 8),
                     GridItem(.flexible(), spacing: 8)
                 ]
                 
                 LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(usageManager.registeredProviders) { provider in
+                    ForEach(usageManager.registeredProviders.sorted {
+                        $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                    }) { provider in
                         ProviderGridTile(provider: provider)
                     }
                 }
@@ -328,7 +331,7 @@ struct OpenCodeSectionView: View {
                     .help(L10n.moveDown)
                 }
                 
-                BrandIconView(.openCode, size: 15)
+                BrandIconView(.openCode, size: 18)
                 
                 Text(L10n.openCodeTitle)
                     .font(DS.Font.cardTitle)
@@ -437,7 +440,7 @@ struct GoogleAISectionView: View {
                     .help(L10n.moveDown)
                 }
                 
-                BrandIconView(.googleAI, size: 15)
+                BrandIconView(.googleAI, size: 18)
                 
                 Text(L10n.googleAITitle)
                     .font(DS.Font.cardTitle)
@@ -706,7 +709,7 @@ struct OpenRouterSectionView: View {
                     .help(L10n.moveDown)
                 }
                 
-                BrandIconView(.openRouter, size: 15)
+                BrandIconView(.openRouter, size: 18)
                 
                 Text(L10n.openRouterTitle)
                     .font(DS.Font.cardTitle)
@@ -1406,18 +1409,17 @@ struct ProviderGridTile: View {
     var body: some View {
         HStack(spacing: 6) {
             ZStack(alignment: .bottomTrailing) {
-                BrandIconView(brand, size: 13)
+                BrandIconChip(brand, size: 18)
                 if provider.isDetected {
                     Circle()
                         .fill(Color.green)
-                        .frame(width: 4, height: 4)
-                        .offset(x: 1.5, y: 1.5)
+                        .frame(width: 6, height: 6)
+                        .offset(x: 2, y: 2)
                 }
             }
-            .frame(width: 14, height: 14)
             .help(provider.isDetected ? L10n.detectedBadge : L10n.notDetectedBadge)
             
-            Text(provider.name)
+            Text(provider.id == "opencode" ? "OpenCode" : provider.name)
                 .font(.system(size: 10.5, weight: isEnabled ? .semibold : .regular))
                 .foregroundColor(isEnabled ? .primary : .secondary)
                 .lineLimit(1)
@@ -1521,7 +1523,7 @@ struct GenericAISectionView: View {
                     .help(L10n.moveDown)
                 }
                 
-                BrandIconView(brand, size: 15)
+                BrandIconView(brand, size: 18)
                 
                 Text(providerName)
                     .font(DS.Font.cardTitle)
@@ -1723,7 +1725,7 @@ struct CursorSectionView: View {
                     .help(L10n.moveDown)
                 }
                 
-                BrandIconView(.cursor, size: 15)
+                BrandIconView(.cursor, size: 18)
                 
                 Text("Cursor")
                     .font(DS.Font.cardTitle)
