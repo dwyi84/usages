@@ -122,6 +122,14 @@ struct UsageCorrectnessTests {
             .cursor, .copilot, .perplexity, .deepseek
         ]
         for brand in brands {
+            if let base64 = brand.pngBase64 {
+                guard let data = Data(base64Encoded: base64) else {
+                    Issue.record("Invalid PNG base64 for \(brand.rawValue)")
+                    continue
+                }
+                #expect(NSImage(data: data) != nil, "Could not render \(brand.rawValue) PNG")
+                continue
+            }
             guard let svg = brand.svg else {
                 Issue.record("Missing SVG for \(brand.rawValue)")
                 continue
