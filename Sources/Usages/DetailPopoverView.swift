@@ -13,23 +13,42 @@ public struct DetailPopoverView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Header (단일 행 슬림 디자인, 상하폭 최소화)
+            // MARK: - Header
             HStack(spacing: 8) {
-                // Title & Version / Time
-                HStack(spacing: 4) {
-                    Text(L10n.appTitle)
-                        .font(.system(size: 11.5, weight: .bold))
-                        .lineLimit(1)
+                HStack(spacing: 7) {
+                    Image(systemName: "chart.bar.xaxis")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
                     
-                    Text("v\(UpdaterViewModel.currentVersion) · \(formatTime(usageManager.lastRefreshedAt))")
-                        .font(.system(size: 8.5))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(L10n.appTitle)
+                            .font(DS.Font.brand)
+                            .lineLimit(1)
+                        
+                        Text("v\(UpdaterViewModel.currentVersion) · \(formatTime(usageManager.lastRefreshedAt))")
+                            .font(DS.Font.meta)
+                            .foregroundStyle(DS.textSecondary)
+                            .lineLimit(1)
+                    }
                 }
                 
-                Spacer(minLength: 4)
+                Spacer(minLength: 6)
                 
-                // Interval picker (텍스트 없이 초소형 세그먼트 단독 배치로 줄바꿈 방지)
+                // Refresh sits immediately left of the interval control.
+                Button(action: {
+                    Task {
+                        await usageManager.refreshAll()
+                    }
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DS.textSecondary)
+                        .rotationEffect(.degrees(usageManager.isRefreshing ? 360 : 0))
+                        .animation(usageManager.isRefreshing ? Animation.linear(duration: 1.0).repeatForever(autoreverses: false) : .default, value: usageManager.isRefreshing)
+                }
+                .buttonStyle(.borderless)
+                .help(L10n.refreshTooltip)
+                
                 Picker("", selection: $settings.refreshIntervalSeconds) {
                     Text(L10n.min1).tag(60.0)
                     Text(L10n.min3).tag(180.0)
@@ -37,80 +56,56 @@ public struct DetailPopoverView: View {
                     Text(L10n.min15).tag(900.0)
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .controlSize(.mini)
                 .frame(width: 118)
                 .onChange(of: settings.refreshIntervalSeconds) { _ in
                     usageManager.startTimer()
                 }
+                .help(L10n.checkInterval)
                 
-                // Check for Updates Button
                 if updater.updateState == .updateAvailable, let newVer = updater.pendingUpdateVersion {
                     Button(action: {
                         updater.presentUpdateConfirmation()
                     }) {
-                        HStack(spacing: 3) {
-                            Circle().fill(Color.orange).frame(width: 5, height: 5)
-                            Text("v\(newVer) Update")
-                                .font(.system(size: 8.5, weight: .semibold))
-                        }
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2.5)
-                        .background(Color.orange.opacity(0.18))
-                        .foregroundColor(.orange)
-                        .cornerRadius(3)
+                        Text("v\(newVer) Update")
+                            .font(.system(size: 9.5, weight: .semibold))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(.orange)
+                    .help("Update to v\(newVer)")
                 } else {
                     Button(action: {
                         updater.checkForUpdatesPresentingAlert()
                     }) {
-                        Text("Check for Updates")
-                            .font(.system(size: 8.5, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2.5)
-                            .background(Color(NSColor.separatorColor).opacity(0.12))
-                            .cornerRadius(3)
+                        Text(L10n.checkForUpdates)
+                            .font(.system(size: 9.5, weight: .medium))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help(L10n.checkForUpdates)
                 }
-                
-                // Refresh Button
-                Button(action: {
-                    Task {
-                        await usageManager.refreshAll()
-                    }
-                }) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .rotationEffect(.degrees(usageManager.isRefreshing ? 360 : 0))
-                        .animation(usageManager.isRefreshing ? Animation.linear(duration: 1.0).repeatForever(autoreverses: false) : .default, value: usageManager.isRefreshing)
-                        .padding(3)
-                        .background(Color(NSColor.separatorColor).opacity(0.12))
-                        .cornerRadius(3)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.refreshTooltip)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 5)
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, 9)
             .lineLimit(1)
             
-            Divider()
+            SoftDivider()
             
-            // MARK: - Scrollable Content Body (적당한 높이값 및 내부 스크롤 처리로 잘림 방지)
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(spacing: 12) {
+            // MARK: - Scrollable Content Body
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: DS.Spacing.md) {
                     let activeOrder = settings.providerOrder.filter { settings.isProviderEnabled($0) }
                     
                     if activeOrder.isEmpty {
                         VStack(spacing: 4) {
                             Text(L10n.isKorean ? "활성화된 프로바이더가 없습니다." : "No active providers.")
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(DS.textSecondary)
                             Text(L10n.isKorean ? "아래 '프로바이더 활성화 및 관리'에서 사용할 서비스를 체크해 주세요." : "Check the services you want to track below.")
-                                .font(.system(size: 9.5))
+                                .font(DS.Font.micro)
                                 .foregroundColor(.secondary.opacity(0.8))
                         }
                         .padding(.vertical, 24)
@@ -171,57 +166,69 @@ public struct DetailPopoverView: View {
                         }
                     }
                     
-                    Divider()
+                    SoftDivider()
+                        .opacity(0.6)
                     
                     // 하이브리드 프로바이더 활성화 및 관리 (접기/펼치기)
                     providerHybridListView
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .id("usageTop")
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.md)
+                }
+                .frame(maxHeight: 620)
+                .onAppear {
+                    proxy.scrollTo("usageTop", anchor: .top)
+                }
             }
-            .frame(maxHeight: 460)
             
-            Divider()
+            SoftDivider()
             
-            // MARK: - Footer (로그인 시 자동 시작, 후원하기, 종료 - 상시 고정 노출)
-            HStack(spacing: 8) {
-                Toggle(L10n.launchAtLogin, isOn: $launchAtLogin.isEnabled)
-                    .toggleStyle(.checkbox)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-                
-                // Buy Me a Coffee Button
-                Link(destination: coffeeURL) {
-                    HStack(spacing: 4) {
-                        Text("☕")
-                            .font(.system(size: 10))
-                        Text(L10n.buyMeACoffee)
-                            .font(.system(size: 9.5, weight: .semibold))
+            // MARK: - Footer
+            VStack(spacing: 5) {
+                HStack(spacing: 8) {
+                    Toggle(L10n.launchAtLogin, isOn: $launchAtLogin.isEnabled)
+                        .toggleStyle(.checkbox)
+                        .font(.system(size: 10.5))
+                        .foregroundColor(DS.textSecondary)
+                    
+                    Spacer()
+                    
+                    Link(destination: coffeeURL) {
+                        HStack(spacing: 4) {
+                            Text("☕")
+                                .font(.system(size: 10))
+                            Text(L10n.buyMeACoffee)
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: DS.Radius.pill, style: .continuous)
+                                .fill(Color(red: 1.0, green: 0.87, blue: 0.0))
+                        )
+                        .foregroundColor(.black)
                     }
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3.5)
-                    .background(Color(red: 1.0, green: 0.87, blue: 0.0))
-                    .foregroundColor(.black)
-                    .cornerRadius(5)
+                    .buttonStyle(.plain)
+                    
+                    Button(L10n.quit) {
+                        NSApplication.shared.terminate(nil)
+                    }
+                    .font(.system(size: 10.5))
+                    .buttonStyle(.borderless)
+                    .foregroundColor(DS.textSecondary)
                 }
-                .buttonStyle(.plain)
                 
-                Button(L10n.quit) {
-                    NSApplication.shared.terminate(nil)
-                }
-                .font(.system(size: 10))
-                .buttonStyle(.borderless)
-                .foregroundColor(.secondary)
+                Text("Crafted by MelissaSoft")
+                    .font(.system(size: 8.5, weight: .medium))
+                    .foregroundStyle(DS.textTertiary)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(Color(NSColor.windowBackgroundColor))
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.top, 8)
+            .padding(.bottom, 7)
         }
         .frame(width: 480)
-        .frame(maxHeight: 560)
-        .background(Color(NSColor.windowBackgroundColor))
+        .frame(maxHeight: 750)
         .popover(isPresented: $uiState.showDetailedTrendPopover, arrowEdge: .leading) {
             if let summary = uiState.selectedTrendSummary {
                 DetailedTrendPopoverView(title: uiState.selectedTrendTitle, summary: summary)
@@ -231,11 +238,11 @@ public struct DetailPopoverView: View {
     
     // MARK: - Hybrid Provider List View (3*3 Grid with Toggle Switches)
     private var providerHybridListView: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(L10n.isKorean ? "프로바이더 활성화 및 관리" : "Provider Activation & Management")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(DS.textSecondary)
                 
                 Spacer()
                 
@@ -249,9 +256,9 @@ public struct DetailPopoverView: View {
                 }) {
                     HStack(spacing: 3) {
                         Image(systemName: uiState.showProviderSettings ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                         Text(uiState.showProviderSettings ? (L10n.isKorean ? "접기" : "Collapse") : (L10n.isKorean ? "펼치기" : "Manage"))
-                            .font(.system(size: 9.5))
+                            .font(.system(size: 10, weight: .medium))
                     }
                     .foregroundColor(.accentColor)
                 }
@@ -260,19 +267,17 @@ public struct DetailPopoverView: View {
             
             if uiState.showProviderSettings {
                 let columns = [
-                    GridItem(.flexible(), spacing: 6),
-                    GridItem(.flexible(), spacing: 6),
-                    GridItem(.flexible(), spacing: 6)
+                    GridItem(.flexible(), spacing: 8),
+                    GridItem(.flexible(), spacing: 8)
                 ]
                 
-                LazyVGrid(columns: columns, spacing: 6) {
+                LazyVGrid(columns: columns, spacing: 8) {
                     ForEach(usageManager.registeredProviders) { provider in
                         ProviderGridTile(provider: provider)
                     }
                 }
-                .padding(8)
-                .background(Color(NSColor.controlBackgroundColor).opacity(0.6))
-                .cornerRadius(6)
+                .padding(10)
+                .glassTile(radius: DS.Radius.card)
             }
         }
     }
@@ -291,13 +296,13 @@ struct OpenCodeSectionView: View {
     @ObservedObject var settings = AppSettings.shared
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             // Card Header
             HStack(spacing: 6) {
                 HStack(spacing: 2) {
                     Button(action: { settings.moveProviderUp(id: "opencode") }) {
                         Image(systemName: "chevron.up")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(settings.providerOrder.first != "opencode" ? .primary : .secondary.opacity(0.3))
                     }
                     .buttonStyle(.plain)
@@ -306,7 +311,7 @@ struct OpenCodeSectionView: View {
                     
                     Button(action: { settings.moveProviderDown(id: "opencode") }) {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(settings.providerOrder.last != "opencode" ? .primary : .secondary.opacity(0.3))
                     }
                     .buttonStyle(.plain)
@@ -314,19 +319,21 @@ struct OpenCodeSectionView: View {
                     .help(L10n.moveDown)
                 }
                 
+                BrandIconView(.openCode, size: 15)
+                
                 Text(L10n.openCodeTitle)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(DS.Font.cardTitle)
                 
                 Spacer()
                 
                 Text("• \(windows.monthlyResetString)")
                     .font(.system(size: 9.5, weight: .semibold))
-                    .foregroundColor(.blue)
+                    .foregroundStyle(DS.textSecondary)
             }
             
             // 2-Column Split: Left Quotas / Right Trend & Cost
             if snapshot.isAvailable {
-                HStack(alignment: .top, spacing: 10) {
+                HStack(alignment: .top, spacing: 12) {
                     // Left: 한도 쿼터 게이지 (개별 클릭 시 쏙 들어가며 아이콘 게이지로 선택)
                     VStack(spacing: 4) {
                         CleanProgressBar(
@@ -359,9 +366,8 @@ struct OpenCodeSectionView: View {
                             }
                         )
                     }
-                    .padding(8)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(6)
+                    .padding(10)
+                    .glassTile()
                     .frame(maxWidth: .infinity)
                     
                     // Right: 토큰 트렌드 & 코스트 환산
@@ -375,18 +381,19 @@ struct OpenCodeSectionView: View {
                         .foregroundColor(.orange)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L10n.isKorean ? "OpenCode Go 인증 미감지" : "OpenCode Go Credentials Not Detected")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 10.5, weight: .semibold))
                         Text(L10n.isKorean ? "로컬 OpenCode 인증 파일(~/.local/share/opencode/opencode.db)이 없거나 로그인되지 않았습니다." : "Local OpenCode credentials (~/.local/share/opencode/opencode.db) not found or not signed in.")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
+                            .font(DS.Font.micro)
+                            .foregroundColor(DS.textSecondary)
                     }
                     Spacer()
                 }
-                .padding(10)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(6)
+                .padding(DS.Spacing.md)
+                .glassTile(radius: DS.Radius.card)
             }
         }
+        .padding(DS.Spacing.md)
+        .glassCard()
     }
 }
 
@@ -398,13 +405,13 @@ struct GoogleAISectionView: View {
     @ObservedObject var settings = AppSettings.shared
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             // Card Header
             HStack(spacing: 6) {
                 HStack(spacing: 2) {
                     Button(action: { settings.moveProviderUp(id: "google_ai") }) {
                         Image(systemName: "chevron.up")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(settings.providerOrder.first != "google_ai" ? .primary : .secondary.opacity(0.3))
                     }
                     .buttonStyle(.plain)
@@ -413,7 +420,7 @@ struct GoogleAISectionView: View {
                     
                     Button(action: { settings.moveProviderDown(id: "google_ai") }) {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(settings.providerOrder.last != "google_ai" ? .primary : .secondary.opacity(0.3))
                     }
                     .buttonStyle(.plain)
@@ -421,15 +428,17 @@ struct GoogleAISectionView: View {
                     .help(L10n.moveDown)
                 }
                 
+                BrandIconView(.googleAI, size: 15)
+                
                 Text(L10n.googleAITitle)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(DS.Font.cardTitle)
                 
                 Spacer()
                 
                 if settings.googleBillingDayOfMonth > 0 && !groups.nextBillingDateString.isEmpty {
                     Text("• \(groups.nextBillingDateString)")
                         .font(.system(size: 9.5, weight: .semibold))
-                        .foregroundColor(.purple)
+                        .foregroundStyle(DS.textSecondary)
                 }
             }
             
@@ -473,25 +482,25 @@ struct GoogleAISectionView: View {
                     }) {
                         Text("✕")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(DS.textSecondary)
                     }
                     .buttonStyle(.plain)
                 }
                 .padding(6)
-                .background(Color.purple.opacity(0.08))
+                .background(Color.accentColor.opacity(0.08))
                 .cornerRadius(6)
             }
             
             // 2-Column Split: Left Quotas (5h -> 주간 -> 월간) / Right Trend & Cost
             if snapshot.isAvailable {
-                HStack(alignment: .top, spacing: 10) {
+                HStack(alignment: .top, spacing: 12) {
                     // Left: 5시간 -> 주간 -> 월간 순서 (개별 항목 클릭 시 쏙 들어가며 아이콘 게이지로 선택)
                     VStack(spacing: 4) {
                         // 1. 5시간 윈도우
                         HStack {
                             Text(L10n.fiveHourWindow)
                                 .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(DS.textSecondary)
                             Spacer()
                         }
                         CleanProgressBar(
@@ -513,13 +522,13 @@ struct GoogleAISectionView: View {
                             }
                         )
                         
-                        Divider().padding(.vertical, 1)
+                        SoftDivider().padding(.vertical, 1)
                         
                         // 2. 주간 한도
                         HStack {
                             Text(L10n.weekly)
                                 .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(DS.textSecondary)
                             Spacer()
                         }
                         CleanProgressBar(
@@ -553,18 +562,42 @@ struct GoogleAISectionView: View {
                             )
                         }
                         
-                        Divider().padding(.vertical, 1)
+                        SoftDivider().padding(.vertical, 1)
                         
-                        // 3. 월간 리셋
-                        CleanProgressBar(
-                            title: L10n.monthly,
-                            percent: groups.overallRemainingPercent,
-                            resetInfo: groups.nextBillingDateString.isEmpty ? "-" : groups.nextBillingDateString,
-                            isSelectedForIcon: settings.selectedMetricKey(for: "google_ai") == "google_monthly",
-                            onSelect: {
-                                settings.setSelectedMetricKey(for: "google_ai", key: "google_monthly")
+                        // 3. 월간 리셋 (Google에는 월간 토큰 쿼터가 없으므로
+                        //    퍼센트 막대 대신 실제 구독 리셋 날짜를 보여준다)
+                        Button(action: {
+                            settings.setSelectedMetricKey(for: "google_ai", key: "google_monthly")
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: settings.selectedMetricKey(for: "google_ai") == "google_monthly" ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(settings.selectedMetricKey(for: "google_ai") == "google_monthly" ? .accentColor : DS.textSecondary.opacity(0.45))
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(DS.textSecondary)
+                                Text(L10n.monthly)
+                                    .font(.system(size: 10.5, weight: settings.selectedMetricKey(for: "google_ai") == "google_monthly" ? .semibold : .medium))
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Text(groups.nextBillingDateString.isEmpty ? "-" : groups.nextBillingDateString)
+                                    .font(.system(size: 9.5, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                             }
-                        )
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 5)
+                            .background(
+                                RoundedRectangle(cornerRadius: DS.Radius.pill, style: .continuous)
+                                    .fill(settings.selectedMetricKey(for: "google_ai") == "google_monthly" ? Color.accentColor.opacity(0.1) : Color.clear)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: DS.Radius.pill, style: .continuous)
+                                    .stroke(settings.selectedMetricKey(for: "google_ai") == "google_monthly" ? Color.accentColor.opacity(0.32) : Color.clear, lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
                         
                         HStack {
                             Spacer()
@@ -573,14 +606,13 @@ struct GoogleAISectionView: View {
                                     uiState.selectedBillingDay = settings.googleBillingDayOfMonth
                                     uiState.isEditingGoogleBillingDay.toggle()
                                 }) {
-                                    HStack(spacing: 2) {
-                                        Text(groups.nextBillingDateString)
-                                            .font(.system(size: 8.5, weight: .semibold))
-                                            .foregroundColor(.purple)
-                                        Image(systemName: "pencil")
-                                            .font(.system(size: 7))
-                                            .foregroundColor(.secondary)
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "calendar")
+                                            .font(.system(size: 8.5))
+                                        Text(L10n.isKorean ? "리셋일 변경" : "Change Reset Day")
+                                            .font(.system(size: 9, weight: .medium))
                                     }
+                                    .foregroundColor(DS.textSecondary)
                                 }
                                 .buttonStyle(.plain)
                                 .help(L10n.googleBillingTooltip)
@@ -591,21 +623,20 @@ struct GoogleAISectionView: View {
                                     uiState.isEditingGoogleBillingDay.toggle()
                                 }) {
                                     Text(L10n.setBillingDay)
-                                        .font(.system(size: 8.5, weight: .semibold))
-                                        .foregroundColor(.purple)
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
-                                        .background(Color.purple.opacity(0.12))
-                                        .cornerRadius(3)
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundColor(.accentColor)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 1.5)
+                                        .background(Color.accentColor.opacity(0.1))
+                                        .cornerRadius(4)
                                 }
                                 .buttonStyle(.plain)
                                 .help(L10n.googleBillingTooltip)
                             }
                         }
                     }
-                    .padding(8)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(6)
+                    .padding(10)
+                    .glassTile()
                     .frame(maxWidth: .infinity)
                     
                     // Right: 토큰 트렌드 & 코스트 환산
@@ -619,18 +650,19 @@ struct GoogleAISectionView: View {
                         .foregroundColor(.orange)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L10n.isKorean ? "Google AI Pro (Antigravity) 미감지" : "Google AI Pro (Antigravity) Not Detected")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 10.5, weight: .semibold))
                         Text(L10n.isKorean ? "Antigravity CLI(agy) 또는 Google AI 계정 키체인 토큰이 설치/로그인되어 있지 않습니다." : "Antigravity CLI (agy) or Google AI Keychain token is not installed or signed in.")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
+                            .font(DS.Font.micro)
+                            .foregroundColor(DS.textSecondary)
                     }
                     Spacer()
                 }
-                .padding(10)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(6)
+                .padding(DS.Spacing.md)
+                .glassTile(radius: DS.Radius.card)
             }
         }
+        .padding(DS.Spacing.md)
+        .glassCard()
     }
 }
 
@@ -642,13 +674,13 @@ struct OpenRouterSectionView: View {
     @ObservedObject var usageManager = UsageManager.shared
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             // Card Header
             HStack(spacing: 6) {
                 HStack(spacing: 2) {
                     Button(action: { settings.moveProviderUp(id: "openrouter") }) {
                         Image(systemName: "chevron.up")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(settings.providerOrder.first != "openrouter" ? .primary : .secondary.opacity(0.3))
                     }
                     .buttonStyle(.plain)
@@ -657,7 +689,7 @@ struct OpenRouterSectionView: View {
                     
                     Button(action: { settings.moveProviderDown(id: "openrouter") }) {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(settings.providerOrder.last != "openrouter" ? .primary : .secondary.opacity(0.3))
                     }
                     .buttonStyle(.plain)
@@ -665,31 +697,33 @@ struct OpenRouterSectionView: View {
                     .help(L10n.moveDown)
                 }
                 
+                BrandIconView(.openRouter, size: 15)
+                
                 Text(L10n.openRouterTitle)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(DS.Font.cardTitle)
                 
                 Spacer()
                 
                 if snapshot.isConnected {
                     Text(String(format: "%@: $%.2f", L10n.balance, snapshot.balanceUSD))
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 10.5, weight: .semibold))
                         .foregroundColor(.accentColor)
                 } else {
                     Text("• " + (L10n.isKorean ? "키 미설정" : "Key Not Set"))
                         .font(.system(size: 9.5))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(DS.textSecondary)
                 }
             }
             
             // 2-Column Split: Left Balance & Key Config / Right Trend & Cost
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
                 // Left: 잔액 & API 키 상태 (저장 후 깔끔하게 숨김 및 수정 대비)
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L10n.balance)
-                                .font(.system(size: 8.5))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 9))
+                                .foregroundColor(DS.textSecondary)
                             Text(String(format: "$%.2f", snapshot.balanceUSD))
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.accentColor)
@@ -708,15 +742,15 @@ struct OpenRouterSectionView: View {
                         }
                     }
                     
-                    Divider()
+                    SoftDivider()
                     
                     // Key status or Inline Edit field (보안 강화: 저장 후 키 노출 절대 불가, 수정 시 빈 입력창으로 대체)
                     if uiState.isEditingOpenRouterKey || !settings.hasOpenRouterKey {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Text(L10n.enterOpenRouterKey)
-                                    .font(.system(size: 8.5))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(DS.textSecondary)
                                 
                                 Spacer()
                                 
@@ -730,7 +764,7 @@ struct OpenRouterSectionView: View {
                                             await usageManager.refreshAll()
                                         }
                                     }
-                                    .font(.system(size: 8.5))
+                                    .font(.system(size: 9))
                                     .foregroundColor(.red.opacity(0.85))
                                     .buttonStyle(.plain)
                                 }
@@ -764,7 +798,7 @@ struct OpenRouterSectionView: View {
                                     }) {
                                         Text("✕")
                                             .font(.system(size: 10, weight: .bold))
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(DS.textSecondary)
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -778,7 +812,7 @@ struct OpenRouterSectionView: View {
                                     .font(.system(size: 10))
                                 Text(L10n.keySavedSecurely)
                                     .font(.system(size: 9.5, weight: .medium))
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(DS.textSecondary)
                             }
                             
                             Spacer()
@@ -803,9 +837,8 @@ struct OpenRouterSectionView: View {
                     
                     Spacer(minLength: 0)
                 }
-                .padding(8)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(6)
+                .padding(10)
+                .glassTile()
                 .frame(maxWidth: .infinity)
                 
                 // Right: 토큰 트렌드 & 코스트 환산
@@ -813,6 +846,8 @@ struct OpenRouterSectionView: View {
                     .frame(maxWidth: .infinity)
             }
         }
+        .padding(DS.Spacing.md)
+        .glassCard()
     }
 }
 
@@ -823,7 +858,7 @@ struct ProviderTrendView: View {
     @ObservedObject var uiState = PopoverUIState.shared
     
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 6) {
             Button(action: {
                 uiState.selectedTrendTitle = title
                 uiState.selectedTrendSummary = trend
@@ -832,10 +867,10 @@ struct ProviderTrendView: View {
                 HStack {
                     HStack(spacing: 3) {
                         Text(L10n.usageTrend)
-                            .font(.system(size: 9.5, weight: .bold))
+                            .font(.system(size: 10.5, weight: .semibold))
                             .foregroundColor(.primary)
                         Image(systemName: "arrow.up.left.and.arrow.down.right")
-                            .font(.system(size: 7.5))
+                            .font(.system(size: 8))
                             .foregroundColor(.accentColor)
                     }
                     
@@ -848,59 +883,59 @@ struct ProviderTrendView: View {
             .buttonStyle(.plain)
             .help(L10n.isKorean ? "클릭하여 30일 상세 트렌드 차트 및 X/Y축 통계 보기" : "Click to view detailed 30-day trend chart")
             
-            Divider()
+            SoftDivider()
             
             // Today
             HStack {
                 Text(L10n.today)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundColor(DS.textSecondary)
                 Spacer()
                 Text("\(formatSpend(trend.todaySpendUSD)) · \(formatTokenCount(trend.todayTokens))")
-                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
             }
             
             // Yesterday
             HStack {
                 Text(L10n.yesterday)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundColor(DS.textSecondary)
                 Spacer()
                 Text("\(formatSpend(trend.yesterdaySpendUSD)) · \(formatTokenCount(trend.yesterdayTokens))")
-                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
             }
             
             // Last 30 Days
             HStack {
                 Text(L10n.last30Days)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundColor(DS.textSecondary)
                 Spacer()
                 Text("\(formatSpend(trend.last30DaysSpendUSD)) · \(formatTokenCount(trend.last30DaysTokens))")
-                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
             }
             
-            Divider()
+            SoftDivider()
             
             // Daily Avg & Peak
             HStack {
                 Text(L10n.dailyAverage)
-                    .font(.system(size: 8.5, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(DS.textSecondary)
                 Spacer()
                 Text("\(formatSpend(trend.dailyAvgSpendUSD)) · \(formatTokenCount(trend.dailyAvgTokens))")
-                    .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundColor(DS.textSecondary)
             }
             
             if !trend.peakDateLabel.isEmpty && trend.peakTokens > 0 {
                 HStack {
                     Text(L10n.peakDay)
-                        .font(.system(size: 8.5, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(DS.textSecondary)
                     Spacer()
                     Text("\(trend.peakDateLabel): \(formatTokenCount(trend.peakTokens))")
-                        .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
                         .foregroundColor(.orange)
                 }
             }
@@ -909,24 +944,22 @@ struct ProviderTrendView: View {
             if !trend.recentActivityLog.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 7.5))
-                        .foregroundColor(.secondary)
-                    Text(trend.recentActivityLog)
                         .font(.system(size: 8))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(DS.textSecondary)
+                    Text(trend.recentActivityLog)
+                        .font(.system(size: 9))
+                        .foregroundColor(DS.textSecondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2.5)
-                .background(Color(NSColor.separatorColor).opacity(0.08))
-                .cornerRadius(4)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .glassTile(radius: DS.Radius.pill)
             }
         }
-        .padding(8)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(6)
+        .padding(DS.Spacing.sm)
+        .glassTile()
     }
     
     private func formatSpend(_ usd: Double) -> String {
@@ -968,18 +1001,18 @@ struct DetailedTrendPopoverView: View {
     }
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Spacing.md) {
             // Title Header with close button
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "chart.bar.xaxis")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.accentColor)
                     Text("\(title) \(L10n.detailedTrendTitle)")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 13.5, weight: .bold))
                     Text("(최근 30일)")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 10.5))
+                        .foregroundColor(DS.textSecondary)
                 }
                 
                 Spacer()
@@ -1032,12 +1065,12 @@ struct DetailedTrendPopoverView: View {
                         Text("\(pt.dateString) (\(pt.dateLabel))")
                             .font(.system(size: 10.5, weight: .bold))
                         Text("•")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(DS.textSecondary)
                         Text("\(formatTokens(pt.tokens)) \(summary.metricUnit.label)")
                             .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                             .foregroundColor(.accentColor)
                         Text("•")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(DS.textSecondary)
                         Text(summary.costAvailable ? String(format: "$%.2f", pt.spendUSD) : "—")
                             .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
                             .foregroundColor(.green)
@@ -1046,18 +1079,17 @@ struct DetailedTrendPopoverView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "hand.point.up.left")
                             .font(.system(size: 9))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(DS.textSecondary)
                         Text(L10n.trendChartTip)
                             .font(.system(size: 9.5))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(DS.textSecondary)
                     }
                 }
                 Spacer()
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(NSColor.separatorColor).opacity(0.1))
-            .cornerRadius(5)
+            .padding(.vertical, 5)
+            .glassTile(radius: DS.Radius.pill)
             
             // Detailed Chart Area with Y-Axis & X-Axis
             VStack(spacing: 4) {
@@ -1065,16 +1097,16 @@ struct DetailedTrendPopoverView: View {
                     // Y-Axis Labels
                     VStack(alignment: .trailing, spacing: 0) {
                         Text(formatTokens(maxTokens))
-                            .font(.system(size: 8, weight: .medium, design: .monospaced))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundColor(DS.textSecondary)
                         Spacer()
                         Text(formatTokens(maxTokens / 2))
-                            .font(.system(size: 8, weight: .medium, design: .monospaced))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundColor(DS.textSecondary)
                         Spacer()
                         Text("0")
-                            .font(.system(size: 8, weight: .medium, design: .monospaced))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundColor(DS.textSecondary)
                     }
                     .frame(width: 44, height: 110)
                     
@@ -1082,11 +1114,11 @@ struct DetailedTrendPopoverView: View {
                     ZStack(alignment: .bottomLeading) {
                         // Horizontal Grid lines (100%, 50%, 0%)
                         VStack(spacing: 0) {
-                            Divider().opacity(0.5)
+                            SoftDivider().opacity(0.5)
                             Spacer()
-                            Divider().opacity(0.25)
+                            SoftDivider().opacity(0.25)
                             Spacer()
-                            Divider().opacity(0.6)
+                            SoftDivider().opacity(0.6)
                         }
                         .frame(height: 110)
                         
@@ -1136,41 +1168,39 @@ struct DetailedTrendPopoverView: View {
                     HStack {
                         if !dailyPoints.isEmpty {
                             Text(dailyPoints[0].dateLabel)
-                                .font(.system(size: 8, design: .monospaced))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundColor(DS.textSecondary)
                             Spacer()
                             if dailyPoints.count > 7 {
                                 Text(dailyPoints[7].dateLabel)
-                                    .font(.system(size: 8, design: .monospaced))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundColor(DS.textSecondary)
                                 Spacer()
                             }
                             if dailyPoints.count > 14 {
                                 Text(dailyPoints[14].dateLabel)
-                                    .font(.system(size: 8, design: .monospaced))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundColor(DS.textSecondary)
                                 Spacer()
                             }
                             if dailyPoints.count > 21 {
                                 Text(dailyPoints[21].dateLabel)
-                                    .font(.system(size: 8, design: .monospaced))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundColor(DS.textSecondary)
                                 Spacer()
                             }
                             Text(dailyPoints.last?.dateLabel ?? "")
-                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
                                 .foregroundColor(.primary)
                         }
                     }
                 }
             }
-            .padding(10)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(8)
+            .padding(DS.Spacing.md)
+            .glassTile(radius: 10)
         }
-        .padding(16)
+        .padding(DS.Spacing.lg)
         .frame(width: 480)
-        .background(Color(NSColor.windowBackgroundColor))
     }
     
     private func formatTokens(_ count: Int) -> String {
@@ -1194,19 +1224,18 @@ struct MetricCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
-                .font(.system(size: 8.5))
-                .foregroundColor(.secondary)
+                .font(.system(size: 9))
+                .foregroundColor(DS.textSecondary)
             Text(value)
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .font(.system(size: 11.5, weight: .bold, design: .monospaced))
                 .foregroundColor(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(6)
+        .glassTile(radius: DS.Radius.tile)
     }
 }
 
@@ -1268,66 +1297,56 @@ struct CleanProgressBar: View {
     }
     
     private var contentView: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 3) {
             HStack {
                 HStack(spacing: 4) {
                     if onSelect != nil {
                         Image(systemName: isSelectedForIcon ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 8))
+                            .font(.system(size: 9))
                             .foregroundColor(isSelectedForIcon ? .accentColor : .secondary.opacity(0.35))
                     }
                     
                     Text(title)
-                        .font(.system(size: 9.5, weight: isSelectedForIcon ? .bold : .medium))
+                        .font(.system(size: 10.5, weight: isSelectedForIcon ? .semibold : .medium))
                         .foregroundColor(.primary)
-                    
-                    if isSelectedForIcon {
-                        Text(L10n.isKorean ? "아이콘 표시" : "Menu Bar")
-                            .font(.system(size: 7, weight: .bold))
-                            .padding(.horizontal, 3)
-                            .padding(.vertical, 0.8)
-                            .background(Color.accentColor.opacity(0.18))
-                            .foregroundColor(.accentColor)
-                            .cornerRadius(2.5)
-                    }
                 }
                 Spacer()
                 Text(formattedPercent)
-                    .font(.system(size: 9.5, weight: .bold))
-                    .foregroundColor(color)
+                    .font(.system(size: 10.5, weight: .bold))
+                    .foregroundColor(.primary)
             }
             
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color(NSColor.separatorColor).opacity(0.25))
-                        .frame(height: 4.5)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(DS.track)
+                        .frame(height: 5.5)
                     
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: 3)
                         .fill(color)
-                        .frame(width: max(0, geo.size.width * CGFloat(percent / 100.0)), height: 4.5)
+                        .frame(width: max(0, geo.size.width * CGFloat(percent / 100.0)), height: 5.5)
                 }
             }
-            .frame(height: 4.5)
+            .frame(height: 5.5)
             
             if !resetInfo.isEmpty && resetInfo != "-" {
                 HStack {
                     Text(resetInfo)
-                        .font(.system(size: 8))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 9))
+                        .foregroundColor(DS.textSecondary)
                     Spacer()
                 }
             }
         }
-        .padding(.horizontal, onSelect != nil ? 5 : 0)
-        .padding(.vertical, onSelect != nil ? 3.5 : 0)
+        .padding(.horizontal, onSelect != nil ? 6 : 0)
+        .padding(.vertical, onSelect != nil ? 4 : 0)
         .background(
-            RoundedRectangle(cornerRadius: 5)
-                .fill(isSelectedForIcon ? Color.accentColor.opacity(0.12) : Color.clear)
+            RoundedRectangle(cornerRadius: DS.Radius.pill, style: .continuous)
+                .fill(isSelectedForIcon ? Color.accentColor.opacity(0.1) : Color.clear)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 5)
-                .stroke(isSelectedForIcon ? Color.accentColor.opacity(0.35) : Color.clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: DS.Radius.pill, style: .continuous)
+                .stroke(isSelectedForIcon ? Color.accentColor.opacity(0.32) : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
     }
@@ -1343,15 +1362,37 @@ struct ProviderGridTile: View {
         settings.isProviderEnabled(provider.id)
     }
     
+    var brand: BrandIcon {
+        switch provider.id {
+        case "opencode": return .openCode
+        case "google_ai": return .googleAI
+        case "openrouter": return .openRouter
+        case "codex": return .codex
+        case "claude": return .claude
+        case "cursor": return .cursor
+        case "copilot": return .copilot
+        case "perplexity": return .perplexity
+        case "deepseek": return .deepseek
+        default: return .codex
+        }
+    }
+    
     var body: some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(provider.isDetected ? Color.green : Color.secondary.opacity(0.35))
-                .frame(width: 5.5, height: 5.5)
-                .help(provider.isDetected ? L10n.detectedBadge : L10n.notDetectedBadge)
+        HStack(spacing: 6) {
+            ZStack(alignment: .bottomTrailing) {
+                BrandIconView(brand, size: 13)
+                if provider.isDetected {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 4, height: 4)
+                        .offset(x: 1.5, y: 1.5)
+                }
+            }
+            .frame(width: 14, height: 14)
+            .help(provider.isDetected ? L10n.detectedBadge : L10n.notDetectedBadge)
             
             Text(provider.name)
-                .font(.system(size: 9.5, weight: isEnabled ? .semibold : .regular))
+                .font(.system(size: 10.5, weight: isEnabled ? .semibold : .regular))
                 .foregroundColor(isEnabled ? .primary : .secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -1368,13 +1409,15 @@ struct ProviderGridTile: View {
             .controlSize(.mini)
             .labelsHidden()
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
-        .background(isEnabled ? Color.accentColor.opacity(0.08) : Color(NSColor.controlBackgroundColor).opacity(0.4))
-        .cornerRadius(5)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.tile, style: .continuous)
+                .fill(isEnabled ? Color.accentColor.opacity(0.09) : DS.tileFill)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 5)
-                .stroke(isEnabled ? Color.accentColor.opacity(0.25) : Color(NSColor.separatorColor).opacity(0.15), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: DS.Radius.tile, style: .continuous)
+                .strokeBorder(isEnabled ? Color.accentColor.opacity(0.28) : DS.subtleStroke, lineWidth: 0.7)
         )
     }
 }
@@ -1399,6 +1442,17 @@ struct GenericAISectionView: View {
         uiState.editingProviderKeyId == providerId || (!hasKey && !isDetected)
     }
     
+    var brand: BrandIcon {
+        switch providerId {
+        case "codex": return .codex
+        case "claude": return .claude
+        case "copilot": return .copilot
+        case "perplexity": return .perplexity
+        case "deepseek": return .deepseek
+        default: return .codex
+        }
+    }
+    
     var trend: UsageTrendSummary {
         UsageTrendSummary(
             todaySpendUSD: 0.0,
@@ -1418,13 +1472,13 @@ struct GenericAISectionView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             // Card Header
             HStack(spacing: 6) {
                 HStack(spacing: 2) {
                     Button(action: { settings.moveProviderUp(id: providerId) }) {
                         Image(systemName: "chevron.up")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(settings.providerOrder.first != providerId ? .primary : .secondary.opacity(0.3))
                     }
                     .buttonStyle(.plain)
@@ -1433,7 +1487,7 @@ struct GenericAISectionView: View {
                     
                     Button(action: { settings.moveProviderDown(id: providerId) }) {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(settings.providerOrder.last != providerId ? .primary : .secondary.opacity(0.3))
                     }
                     .buttonStyle(.plain)
@@ -1441,8 +1495,10 @@ struct GenericAISectionView: View {
                     .help(L10n.moveDown)
                 }
                 
+                BrandIconView(brand, size: 15)
+                
                 Text(providerName)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(DS.Font.cardTitle)
                 
                 Spacer()
                 
@@ -1453,19 +1509,19 @@ struct GenericAISectionView: View {
                 } else {
                     Text("• " + (L10n.isKorean ? "키 미설정" : "Key Not Set"))
                         .font(.system(size: 9.5))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(DS.textSecondary)
                 }
             }
             
             // 2-Column Split: Left Status & Key Config / Right Trend
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
                 // Left Column: Status & Write-only Key input
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L10n.isKorean ? "연동 상태" : "Status")
-                                .font(.system(size: 8.5))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 9))
+                                .foregroundColor(DS.textSecondary)
                             Text(hasKey ? (L10n.isKorean ? "API 키 연동" : "API Key Linked") : (isDetected ? (L10n.isKorean ? "환경변수/로컬 감지" : "Detected Locally") : (L10n.isKorean ? "미설정" : "Not Linked")))
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(hasKey || isDetected ? .primary : .secondary)
@@ -1484,15 +1540,15 @@ struct GenericAISectionView: View {
                         }
                     }
                     
-                    Divider()
+                    SoftDivider()
                     
                     // Key Configuration
                     if isEditing {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Text(L10n.isKorean ? "API 키 입력 (\(envKeyName))" : "Enter API Key (\(envKeyName))")
-                                    .font(.system(size: 8.5))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(DS.textSecondary)
                                 
                                 Spacer()
                                 
@@ -1503,7 +1559,7 @@ struct GenericAISectionView: View {
                                         uiState.editingProviderKeyId = nil
                                         usageManager.reloadProviders()
                                     }
-                                    .font(.system(size: 8.5))
+                                    .font(.system(size: 9))
                                     .foregroundColor(.red.opacity(0.85))
                                     .buttonStyle(.plain)
                                 }
@@ -1533,7 +1589,7 @@ struct GenericAISectionView: View {
                                     }) {
                                         Text("✕")
                                             .font(.system(size: 10, weight: .bold))
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(DS.textSecondary)
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -1567,23 +1623,17 @@ struct GenericAISectionView: View {
                     
                     Spacer(minLength: 0)
                 }
-                .padding(8)
+                .padding(10)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(6)
+                .glassTile()
                 
                 // Right Column: Usage Trend View
                 ProviderTrendView(title: providerName, trend: trend)
                     .frame(maxWidth: .infinity)
             }
         }
-        .padding(10)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 0.5)
-        )
+        .padding(DS.Spacing.md)
+        .glassCard()
     }
 }
 
@@ -1624,13 +1674,13 @@ struct CursorSectionView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             // Card Header
             HStack(spacing: 6) {
                 HStack(spacing: 2) {
                     Button(action: { settings.moveProviderUp(id: "cursor") }) {
                         Image(systemName: "chevron.up")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(settings.providerOrder.first != "cursor" ? .primary : .secondary.opacity(0.3))
                     }
                     .buttonStyle(.plain)
@@ -1639,7 +1689,7 @@ struct CursorSectionView: View {
                     
                     Button(action: { settings.moveProviderDown(id: "cursor") }) {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundColor(settings.providerOrder.last != "cursor" ? .primary : .secondary.opacity(0.3))
                     }
                     .buttonStyle(.plain)
@@ -1647,8 +1697,10 @@ struct CursorSectionView: View {
                     .help(L10n.moveDown)
                 }
                 
+                BrandIconView(.cursor, size: 15)
+                
                 Text("Cursor")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(DS.Font.cardTitle)
                 
                 Spacer()
                 
@@ -1659,19 +1711,19 @@ struct CursorSectionView: View {
                 } else {
                     Text("• " + (L10n.isKorean ? "미설치" : "Not Installed"))
                         .font(.system(size: 9.5))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(DS.textSecondary)
                 }
             }
             
             // 2-Column Split: Left IDE Info & Token / Right Trend
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
                 // Left Column
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L10n.isKorean ? "IDE 상태" : "IDE Status")
-                                .font(.system(size: 8.5))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 9))
+                                .foregroundColor(DS.textSecondary)
                             Text(isDetected ? (L10n.isKorean ? "Cursor 활성화" : "Cursor Active") : (L10n.isKorean ? "Cursor 미설치" : "Not Found"))
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(isDetected ? .primary : .secondary)
@@ -1686,18 +1738,18 @@ struct CursorSectionView: View {
                         } else {
                             Text(L10n.isKorean ? "미감지" : "Missing")
                                 .font(.system(size: 9))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(DS.textSecondary)
                         }
                     }
                     
-                    Divider()
+                    SoftDivider()
                     
                     if isEditing {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Text(L10n.isKorean ? "Cursor 토큰 입력 (선택사항)" : "Cursor Token (Optional)")
-                                    .font(.system(size: 8.5))
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(DS.textSecondary)
                                 
                                 Spacer()
                                 
@@ -1708,7 +1760,7 @@ struct CursorSectionView: View {
                                         uiState.editingProviderKeyId = nil
                                         usageManager.reloadProviders()
                                     }
-                                    .font(.system(size: 8.5))
+                                    .font(.system(size: 9))
                                     .foregroundColor(.red.opacity(0.85))
                                     .buttonStyle(.plain)
                                 }
@@ -1737,7 +1789,7 @@ struct CursorSectionView: View {
                                 }) {
                                     Text("✕")
                                         .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(DS.textSecondary)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -1768,7 +1820,7 @@ struct CursorSectionView: View {
                         HStack {
                             Text(isDetected ? (L10n.isKorean ? "로컬 /Applications/Cursor.app 연동" : "Linked with /Applications/Cursor.app") : (L10n.isKorean ? "Cursor 설치 시 자동 연동됩니다" : "Auto-detected on Cursor install"))
                                 .font(.system(size: 9))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(DS.textSecondary)
                             
                             Spacer()
                             
@@ -1786,22 +1838,16 @@ struct CursorSectionView: View {
                     
                     Spacer(minLength: 0)
                 }
-                .padding(8)
+                .padding(10)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(6)
+                .glassTile()
                 
                 // Right Column: Usage Trend View
                 ProviderTrendView(title: "Cursor", trend: trend)
                     .frame(maxWidth: .infinity)
             }
         }
-        .padding(10)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 0.5)
-        )
+        .padding(DS.Spacing.md)
+        .glassCard()
     }
 }

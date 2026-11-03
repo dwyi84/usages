@@ -219,7 +219,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let fitting = view.fittingSize
         let screenHeight = NSScreen.main?.visibleFrame.height ?? 800
         // 화면 해상도를 벗어나지 않도록 최대 높이를 550pt로 제한하고, 내부 스크롤로 처리
-        let maxHeight = min(screenHeight - 120, 550)
+        let maxHeight = min(screenHeight - 120, 750)
         let targetHeight = fitting.height > 0 ? min(fitting.height, maxHeight) : min(500, maxHeight)
         popover.contentSize = NSSize(width: 480, height: targetHeight)
     }

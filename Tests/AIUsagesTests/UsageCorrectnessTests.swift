@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import AppKit
 @testable import AIUsages
 
 @Suite("Usage correctness")
@@ -109,5 +110,23 @@ struct UsageCorrectnessTests {
     @Test("Overall quota is zero only when nothing is known")
     func overallZeroWhenUnknown() {
         #expect(GoogleAIGroupLimits().overallRemainingPercent == 0)
+    }
+    
+    // MARK: - Brand marks
+    
+    @Test("Embedded brand SVGs render as images")
+    func brandMarksRender() {
+        let brands: [BrandIcon] = [
+            .openCode, .googleAI, .openRouter, .claude,
+            .cursor, .copilot, .perplexity, .deepseek
+        ]
+        for brand in brands {
+            guard let svg = brand.svg else {
+                Issue.record("Missing SVG for \(brand.rawValue)")
+                continue
+            }
+            let data = Data(svg.utf8)
+            #expect(NSImage(data: data) != nil, "Could not render \(brand.rawValue)")
+        }
     }
 }
