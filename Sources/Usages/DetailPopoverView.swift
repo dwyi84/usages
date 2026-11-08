@@ -1080,28 +1080,50 @@ struct DetailedTrendPopoverView: View {
                 )
             }
             
-            // Interactive Inspection Banner (Fixed Height & Unified Typography to prevent layout shifting)
-            HStack(spacing: 6) {
+            // Interactive Inspection Banner (Fixed Width Columns to prevent digit jitter)
+            HStack(spacing: 8) {
                 if let idx = uiState.hoveredTrendIndex, idx < dailyPoints.count {
                     let pt = dailyPoints[idx]
-                    Circle()
-                        .fill(Color.accentColor)
-                        .frame(width: 5, height: 5)
-                    Text("\(pt.dateString) (\(pt.dateLabel))")
-                        .font(.system(size: 10, weight: .semibold))
+                    
+                    // Column 1: Date (fixed width to keep delimiter anchored)
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 5, height: 5)
+                        Text("\(pt.dateString) (\(pt.dateLabel))")
+                            .font(.system(size: 10, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    .frame(width: 140, alignment: .leading)
+                    
                     Text("•")
                         .font(.system(size: 9))
                         .foregroundColor(DS.textSecondary)
-                    Text("\(formatTokens(pt.tokens)) \(summary.metricUnit.label)")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.accentColor)
+                    
+                    // Column 2: Usage / Tokens (Right-aligned number for digit stability + fixed label)
+                    HStack(spacing: 4) {
+                        Text(formatTokens(pt.tokens))
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .monospacedDigit()
+                            .foregroundColor(.accentColor)
+                            .frame(width: 48, alignment: .trailing)
+                        Text(summary.metricUnit.label)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(DS.textSecondary)
+                    }
+                    .frame(width: 95, alignment: .leading)
+                    
+                    // Column 3: Cost (anchored right-aligned currency)
                     if summary.costAvailable {
                         Text("•")
                             .font(.system(size: 9))
                             .foregroundColor(DS.textSecondary)
+                        
                         Text(String(format: "$%.2f", pt.spendUSD))
                             .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .monospacedDigit()
                             .foregroundColor(.green)
+                            .frame(width: 58, alignment: .trailing)
                     }
                 } else {
                     HStack(spacing: 4) {
