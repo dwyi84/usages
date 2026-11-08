@@ -1080,41 +1080,44 @@ struct DetailedTrendPopoverView: View {
                 )
             }
             
-            // Interactive Inspection Banner
-            HStack {
+            // Interactive Inspection Banner (Fixed Height & Unified Typography to prevent layout shifting)
+            HStack(spacing: 6) {
                 if let idx = uiState.hoveredTrendIndex, idx < dailyPoints.count {
                     let pt = dailyPoints[idx]
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(Color.accentColor)
-                            .frame(width: 6, height: 6)
-                        Text("\(pt.dateString) (\(pt.dateLabel))")
-                            .font(.system(size: 10.5, weight: .bold))
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(width: 5, height: 5)
+                    Text("\(pt.dateString) (\(pt.dateLabel))")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("•")
+                        .font(.system(size: 9))
+                        .foregroundColor(DS.textSecondary)
+                    Text("\(formatTokens(pt.tokens)) \(summary.metricUnit.label)")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.accentColor)
+                    if summary.costAvailable {
                         Text("•")
+                            .font(.system(size: 9))
                             .foregroundColor(DS.textSecondary)
-                        Text("\(formatTokens(pt.tokens)) \(summary.metricUnit.label)")
-                            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.accentColor)
-                        Text("•")
-                            .foregroundColor(DS.textSecondary)
-                        Text(summary.costAvailable ? String(format: "$%.2f", pt.spendUSD) : "—")
-                            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                        Text(String(format: "$%.2f", pt.spendUSD))
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
                             .foregroundColor(.green)
                     }
                 } else {
                     HStack(spacing: 4) {
                         Image(systemName: "hand.point.up.left")
-                            .font(.system(size: 9))
+                            .font(.system(size: 9.5))
                             .foregroundColor(DS.textSecondary)
                         Text(L10n.trendChartTip)
-                            .font(.system(size: 9.5))
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundColor(DS.textSecondary)
                     }
                 }
-                Spacer()
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .lineLimit(1)
+            .padding(.horizontal, 9)
+            .frame(height: 28)
             .glassTile(radius: DS.Radius.pill)
             
             // Detailed Chart Area with Y-Axis & X-Axis
@@ -1148,8 +1151,8 @@ struct DetailedTrendPopoverView: View {
                         }
                         .frame(height: 110)
                         
-                        // 30 Bars
-                        HStack(alignment: .bottom, spacing: 3) {
+                        // 30 Bars: Continuous hit-testing slots (spacing: 0) with internal padding to eliminate gap flickering
+                        HStack(alignment: .bottom, spacing: 0) {
                             ForEach(0..<dailyPoints.count, id: \.self) { idx in
                                 let pt = dailyPoints[idx]
                                 let heightFraction = CGFloat(pt.tokens) / CGFloat(maxTokens)
@@ -1162,7 +1165,6 @@ struct DetailedTrendPopoverView: View {
                                         RoundedRectangle(cornerRadius: 1.5)
                                             .fill(isHovered ? Color.orange : Color.accentColor)
                                             .frame(height: max(4.0, heightFraction * 106.0))
-                                            .shadow(color: isHovered ? Color.orange.opacity(0.4) : Color.clear, radius: 2)
                                     } else {
                                         Circle()
                                             .fill(isHovered ? Color.orange : Color.accentColor.opacity(0.3))
@@ -1170,20 +1172,26 @@ struct DetailedTrendPopoverView: View {
                                             .padding(.bottom, 1)
                                     }
                                 }
+                                .padding(.horizontal, 1.5)
                                 .frame(maxWidth: .infinity, maxHeight: 110, alignment: .bottom)
                                 .contentShape(Rectangle())
                                 .onHover { hovering in
                                     if hovering {
                                         uiState.hoveredTrendIndex = idx
-                                    } else if uiState.hoveredTrendIndex == idx {
-                                        uiState.hoveredTrendIndex = nil
                                     }
                                 }
                             }
                         }
                         .frame(height: 110)
+                        .contentShape(Rectangle())
                     }
                     .frame(height: 110)
+                    .contentShape(Rectangle())
+                    .onHover { hovering in
+                        if !hovering {
+                            uiState.hoveredTrendIndex = nil
+                        }
+                    }
                 }
                 
                 // X-Axis (Date ticks)
