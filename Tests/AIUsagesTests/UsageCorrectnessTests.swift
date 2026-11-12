@@ -38,6 +38,41 @@ struct UsageCorrectnessTests {
         #expect(ISO8601Parser.date(from: "not-a-date") == nil)
     }
     
+    // MARK: - OpenCode credentials
+    
+    @Test("Reads the OpenCode v2 API key credential")
+    func readsOpenCodeAPIKeyCredential() {
+        // OpenCode v2.2 stores this in the credential table under
+        // integration_id = "opencode-go".
+        let json = #"{"type":"key","key":"oc_sk_example"}"#
+        #expect(OpenCodeProvider.token(fromCredentialJSON: json) == "oc_sk_example")
+    }
+    
+    @Test("Reads the legacy OAuth access token credential")
+    func readsOpenCodeOAuthCredential() {
+        let json = #"{"type":"oauth","access":"oauth-access-token","refresh":"refresh-token"}"#
+        #expect(OpenCodeProvider.token(fromCredentialJSON: json) == "oauth-access-token")
+    }
+    
+    @Test("Prefers the access token when both shapes are present")
+    func prefersAccessTokenWhenBothPresent() {
+        let json = #"{"access":"oauth-access-token","key":"oc_sk_example"}"#
+        #expect(OpenCodeProvider.token(fromCredentialJSON: json) == "oauth-access-token")
+    }
+    
+    @Test("Rejects malformed or empty credentials")
+    func rejectsMalformedCredentials() {
+        #expect(OpenCodeProvider.token(fromCredentialJSON: "not json") == nil)
+        #expect(OpenCodeProvider.token(fromCredentialJSON: #"{"key":""}"#) == nil)
+        #expect(OpenCodeProvider.token(fromCredentialJSON: #"{"type":"key"}"#) == nil)
+    }
+    
+    @Test("Reads nested token objects")
+    func readsNestedTokenObject() {
+        let json = #"{"tokens":{"access_token":"nested-token"}}"#
+        #expect(OpenCodeProvider.token(fromCredentialJSON: json) == "nested-token")
+    }
+    
     // MARK: - Google billing date
     
     private func kstCalendar() -> Calendar {

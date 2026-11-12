@@ -143,24 +143,84 @@ public final class OpenCodeProvider: @unchecked Sendable {
     
     private func readAccessTokenFromDb() -> String? {
         let dbPath = "\(homeDir)/.local/share/opencode/opencode.db"
-        guard FileManager.default.fileExists(atPath: dbPath) else { return nil }
-        
+        if FileManager.default.fileExists(atPath: dbPath),
+           let token = readTokenFromDatabase(at: dbPath) {
+            return token
+        }
+        // OpenCode v1 kept credentials in auth.json; keep the fallback so older
+        // installations are still detected.
+        return readTokenFromAuthFile()
+    }
+
+    /// Reads the credential row for OpenCode Go.
+    ///
+    /// OpenCode v2 stores an API key (`{"type":"key","key":"oc_sk_..."}`) under
+    /// `integration_id = 'opencode-go'`, whereas older builds stored an OAuth
+    /// session (`{"access":"..."}`) under `integration_id = 'opencode'`. Both
+    /// shapes are accepted, and active rows win over stale ones.
+    private func readTokenFromDatabase(at dbPath: String) -> String? {
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, 1_000)
         
         var stmt: OpaquePointer?
-        let query = "SELECT value FROM credential WHERE integration_id = 'opencode' OR label = 'Default' LIMIT 1;"
+        let query = """
+        SELECT value FROM credential
+        WHERE integration_id IN ('opencode-go', 'opencode')
+           OR connector_id IN ('opencode-go', 'opencode')
+           OR label IN ('OpenCode Go', 'OpenCode', 'Default')
+        ORDER BY active DESC, time_updated DESC
+        LIMIT 20;
+        """
         guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(stmt) }
         
-        if sqlite3_step(stmt) == SQLITE_ROW, let cStr = sqlite3_column_text(stmt, 0) {
-            let jsonStr = String(cString: cStr)
-            if let jsonData = jsonStr.data(using: .utf8),
-               let dict = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
-                return dict["access"] as? String
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let cStr = sqlite3_column_text(stmt, 0) else { continue }
+            if let token = Self.token(fromCredentialJSON: String(cString: cStr)) {
+                return token
             }
+        }
+        return nil
+    }
+    
+    private func readTokenFromAuthFile() -> String? {
+        let candidates = [
+            "\(homeDir)/.local/share/opencode/auth.json",
+            "\(homeDir)/.config/opencode/auth.json"
+        ]
+        for path in candidates {
+            guard let data = FileManager.default.contents(atPath: path),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            let entry = (json["opencode-go"] as? [String: Any]) ?? (json["opencode"] as? [String: Any])
+            if let entry, let token = Self.token(fromCredentialDictionary: entry) {
+                return token
+            }
+        }
+        return nil
+    }
+    
+    static func token(fromCredentialJSON jsonString: String) -> String? {
+        guard let data = jsonString.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return token(fromCredentialDictionary: dict)
+    }
+    
+    static func token(fromCredentialDictionary dict: [String: Any]) -> String? {
+        // `key` is the v2 API key; `access` is the legacy OAuth access token.
+        let keys = ["access", "access_token", "accessToken", "key", "apiKey", "api_key", "token"]
+        for key in keys {
+            if let value = dict[key] as? String {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+        }
+        if let nested = dict["tokens"] as? [String: Any],
+           let token = token(fromCredentialDictionary: nested) {
+            return token
         }
         return nil
     }
