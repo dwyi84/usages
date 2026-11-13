@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -28,10 +29,12 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -471,6 +474,10 @@ fun GoogleAISectionCard(
     selectedMetricKey: String,
     billingDayOfMonth: Int,
     hasKey: Boolean,
+    connectedEmail: String?,
+    savedClientId: String?,
+    hasSavedClientSecret: Boolean,
+    isOAuthPending: Boolean,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onMoveUp: () -> Unit,
@@ -479,10 +486,19 @@ fun GoogleAISectionCard(
     onSaveBillingDay: (Int) -> Unit,
     onSaveKey: (String) -> Unit,
     onDeleteKey: () -> Unit,
+    onStartOAuthSignIn: (clientId: String, clientSecret: String?, useAndroidRedirect: Boolean) -> Unit,
+    onSubmitManualOAuthCode: (String) -> Unit,
+    onCancelOAuth: () -> Unit,
+    onImportAuthOrClientJson: () -> Unit,
     onImportStepsDb: () -> Unit,
     onOpenTrendDetail: (String, UsageTrendSummary) -> Unit
 ) {
     var isEditingKey by remember { mutableStateOf(false) }
+    var useOAuthTab by remember { mutableStateOf(!hasKey || !savedClientId.isNullOrBlank()) }
+    var clientIdInput by remember(savedClientId) { mutableStateOf(savedClientId.orEmpty()) }
+    var clientSecretInput by remember { mutableStateOf("") }
+    var useAndroidRedirect by remember { mutableStateOf(false) }
+    var manualOAuthInput by remember(isOAuthPending) { mutableStateOf("") }
     var isEditingBillingDay by remember { mutableStateOf(false) }
     var draftBillingDay by remember(billingDayOfMonth) {
         mutableIntStateOf(if (billingDayOfMonth in 1..31) billingDayOfMonth else 1)
@@ -499,9 +515,14 @@ fun GoogleAISectionCard(
         onMoveUp = onMoveUp,
         onMoveDown = onMoveDown,
         trailingHeader = {
-            if (billingDayOfMonth > 0 && groups.nextBillingDateString.isNotBlank()) {
+            val headerNote = when {
+                !connectedEmail.isNullOrBlank() -> "• $connectedEmail"
+                billingDayOfMonth > 0 && groups.nextBillingDateString.isNotBlank() -> "• ${groups.nextBillingDateString}"
+                else -> ""
+            }
+            if (headerNote.isNotBlank()) {
                 Text(
-                    text = "• ${groups.nextBillingDateString}",
+                    text = headerNote,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = DS.textSecondary(),
@@ -511,6 +532,32 @@ fun GoogleAISectionCard(
             }
         }
     ) {
+        if (!snapshot.statusMessage.isNullOrBlank()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DS.BatteryAmber.copy(alpha = 0.14f))
+                    .border(0.6.dp, DS.BatteryAmber.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Warning,
+                    contentDescription = null,
+                    tint = DS.BatteryAmber,
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = snapshot.statusMessage,
+                    fontSize = 10.5.sp,
+                    color = DS.textPrimary(),
+                    lineHeight = 14.sp
+                )
+            }
+        }
+
         if (isEditingBillingDay) {
             Row(
                 modifier = Modifier
@@ -589,7 +636,7 @@ fun GoogleAISectionCard(
                         modifier = Modifier.padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        if (snapshot.isAvailable) {
+                        if (snapshot.isAvailable && (groups.hasAnyKnownQuota || snapshot.statusMessage == null)) {
                             Text(
                                 text = L10n.fiveHourWindow,
                                 fontSize = 9.5.sp,
@@ -715,40 +762,294 @@ fun GoogleAISectionCard(
                             SoftDivider(alpha = 0.7f)
                         }
 
-                        WriteOnlyKeyEditor(
-                            promptLabel = L10n.enterGoogleToken,
-                            placeholder = "ya29... or {\"token\":...}",
-                            hasKey = hasKey,
-                            isEditing = isEditingKey || !snapshot.isAvailable,
-                            onStartEdit = { isEditingKey = true },
-                            onCancelEdit = { isEditingKey = false },
-                            onSaveKey = {
-                                onSaveKey(it)
-                                isEditingKey = false
-                            },
-                            onDeleteKey = {
-                                onDeleteKey()
-                                isEditingKey = false
-                            },
-                            extraImportAction = {
-                                OutlinedButton(
-                                    onClick = onImportStepsDb,
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                    modifier = Modifier.height(26.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.FolderOpen,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(
-                                        text = if (L10n.isKorean) "스텝 DB 가져오기" else "Import Steps DB",
-                                        fontSize = 9.5.sp
-                                    )
+                        if (!hasKey || isEditingKey || isOAuthPending) {
+                            // Mode selector: Google OAuth Browser Sign-In vs Auth Token / JSON
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(DS.RadiusPill))
+                                    .background(DS.track())
+                                    .padding(2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                listOf(
+                                    true to (if (L10n.isKorean) "Google 계정 OAuth" else "Google OAuth"),
+                                    false to (if (L10n.isKorean) "토큰 / JSON" else "Token / JSON")
+                                ).forEach { (tabIsOAuth, label) ->
+                                    val active = useOAuthTab == tabIsOAuth
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (active) DS.AccentBlue else Color.Transparent)
+                                            .clickable { useOAuthTab = tabIsOAuth }
+                                            .padding(vertical = 5.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 10.sp,
+                                            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                                            color = if (active) Color.White else DS.textSecondary(),
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                             }
-                        )
+
+                            if (useOAuthTab) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (L10n.isKorean) "Google Cloud OAuth 클라이언트 설정" else "Google Cloud OAuth Client",
+                                            fontSize = 10.sp,
+                                            color = DS.textSecondary(),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (hasKey) {
+                                            Text(
+                                                text = L10n.deleteKey,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = DS.BatteryRed,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .clickable {
+                                                        onDeleteKey()
+                                                        isEditingKey = false
+                                                    }
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        if (hasKey && !isOAuthPending) {
+                                            Spacer(Modifier.width(4.dp))
+                                            IconButton(
+                                                onClick = { isEditingKey = false },
+                                                modifier = Modifier.size(22.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Close,
+                                                    contentDescription = "Cancel",
+                                                    tint = DS.textSecondary(),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    OutlinedTextField(
+                                        value = clientIdInput,
+                                        onValueChange = { clientIdInput = it },
+                                        placeholder = { Text("xxxx.apps.googleusercontent.com", fontSize = 10.5.sp, maxLines = 1) },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = clientSecretInput,
+                                        onValueChange = { clientSecretInput = it },
+                                        placeholder = {
+                                            Text(
+                                                if (hasSavedClientSecret) {
+                                                    if (L10n.isKorean) "Client Secret 저장됨 (변경 시 입력)" else "Client Secret saved (optional override)"
+                                                } else {
+                                                    if (L10n.isKorean) "Client Secret (Desktop JSON 시 선택)" else "Client Secret (optional)"
+                                                },
+                                                fontSize = 10.5.sp,
+                                                maxLines = 1
+                                            )
+                                        },
+                                        singleLine = true,
+                                        visualTransformation = PasswordVisualTransformation(),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = if (useAndroidRedirect) "Redirect: App URI" else "Redirect: 127.0.0.1",
+                                            fontSize = 9.5.sp,
+                                            color = DS.textSecondary(),
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(DS.chipFill())
+                                                .clickable { useAndroidRedirect = !useAndroidRedirect }
+                                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                        OutlinedButton(
+                                            onClick = onImportAuthOrClientJson,
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            modifier = Modifier.height(28.dp)
+                                        ) {
+                                            Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(12.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(L10n.importAuthOrClientJson, fontSize = 9.5.sp, maxLines = 1)
+                                        }
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            onStartOAuthSignIn(
+                                                clientIdInput,
+                                                clientSecretInput.takeIf { it.isNotBlank() },
+                                                useAndroidRedirect
+                                            )
+                                        },
+                                        enabled = clientIdInput.trim().isNotEmpty() && !isOAuthPending,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(vertical = 8.dp)
+                                    ) {
+                                        Icon(Icons.Filled.AccountCircle, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = if (isOAuthPending) {
+                                                if (L10n.isKorean) "브라우저 인증 대기 중..." else "Waiting for Google Sign-In..."
+                                            } else {
+                                                L10n.googleSignInButton
+                                            },
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+
+                                    if (isOAuthPending) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(DS.AccentBlue.copy(alpha = 0.08f))
+                                                .padding(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Text(
+                                                text = if (L10n.isKorean) {
+                                                    "자동 복귀가 안 되면 리디렉션된 주소(http://127.0.0.1...) 또는 code를 붙여넣으세요:"
+                                                } else {
+                                                    "If auto-return didn't trigger, paste the redirected URL or code:"
+                                                },
+                                                fontSize = 9.5.sp,
+                                                color = DS.textSecondary()
+                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                OutlinedTextField(
+                                                    value = manualOAuthInput,
+                                                    onValueChange = { manualOAuthInput = it },
+                                                    placeholder = { Text("http://127.0.0.1... or 4/0A...", fontSize = 10.sp) },
+                                                    singleLine = true,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Button(
+                                                    onClick = { onSubmitManualOAuthCode(manualOAuthInput) },
+                                                    enabled = manualOAuthInput.isNotBlank(),
+                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                                ) {
+                                                    Text(L10n.save, fontSize = 10.sp)
+                                                }
+                                                TextButton(
+                                                    onClick = onCancelOAuth,
+                                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(if (L10n.isKorean) "취소" else "Cancel", fontSize = 10.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Text(
+                                        text = if (L10n.isKorean) {
+                                            "참고: cloudcode-pa는 Google 비공개 API라 일반 개인 GCP 클라이언트는 403이 발생할 수 있습니다. 기존 agy 인증 JSON이 있다면 파일 가져오기를 이용해 주세요."
+                                        } else {
+                                            "Note: cloudcode-pa is an internal Google API and may return 403 for personal GCP clients. Use Import Auth JSON if you have an agy token bundle."
+                                        },
+                                        fontSize = 9.sp,
+                                        lineHeight = 12.sp,
+                                        color = DS.textTertiary()
+                                    )
+                                }
+                            } else {
+                                WriteOnlyKeyEditor(
+                                    promptLabel = L10n.enterGoogleToken,
+                                    placeholder = "ya29... or {\"token\":...}",
+                                    hasKey = hasKey,
+                                    isEditing = true,
+                                    onStartEdit = { isEditingKey = true },
+                                    onCancelEdit = { isEditingKey = false },
+                                    onSaveKey = {
+                                        onSaveKey(it)
+                                        isEditingKey = false
+                                    },
+                                    onDeleteKey = {
+                                        onDeleteKey()
+                                        isEditingKey = false
+                                    },
+                                    extraImportAction = {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            OutlinedButton(
+                                                onClick = onImportAuthOrClientJson,
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(26.dp)
+                                            ) {
+                                                Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(L10n.importAuthOrClientJson, fontSize = 9.5.sp)
+                                            }
+                                            OutlinedButton(
+                                                onClick = onImportStepsDb,
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(26.dp)
+                                            ) {
+                                                Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    text = if (L10n.isKorean) "스텝 DB" else "Steps DB",
+                                                    fontSize = 9.5.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        } else {
+                            WriteOnlyKeyEditor(
+                                promptLabel = L10n.enterGoogleToken,
+                                placeholder = "ya29... or {\"token\":...}",
+                                hasKey = hasKey,
+                                isEditing = false,
+                                onStartEdit = { isEditingKey = true },
+                                onCancelEdit = { isEditingKey = false },
+                                onSaveKey = {
+                                    onSaveKey(it)
+                                    isEditingKey = false
+                                },
+                                onDeleteKey = {
+                                    onDeleteKey()
+                                    isEditingKey = false
+                                },
+                                extraImportAction = {
+                                    OutlinedButton(
+                                        onClick = onImportStepsDb,
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(26.dp)
+                                    ) {
+                                        Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(12.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = if (L10n.isKorean) "스텝 DB 가져오기" else "Import Steps DB",
+                                            fontSize = 9.5.sp
+                                        )
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             },
@@ -760,6 +1061,74 @@ fun GoogleAISectionCard(
                 )
             }
         )
+    }
+}
+
+@Composable
+fun StatusBarIndicatorSettingCard(
+    enabled: Boolean,
+    hasPermission: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onRequestPermission: () -> Unit
+) {
+    GlassTile(cornerRadius = DS.RadiusCard, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    if (enabled && !hasPermission) {
+                        onRequestPermission()
+                    } else {
+                        onToggle(!enabled)
+                    }
+                }
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.NotificationsActive,
+                contentDescription = null,
+                tint = if (enabled && hasPermission) DS.AccentBlue else DS.textSecondary(),
+                modifier = Modifier.size(18.dp)
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = L10n.statusBarIndicatorLabel,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DS.textPrimary()
+                )
+                Text(
+                    text = when {
+                        !enabled -> if (L10n.isKorean) "꺼짐 · 홈 화면 위젯만 표시" else "Off · Home Screen Widget only"
+                        !hasPermission -> if (L10n.isKorean) "알림 권한 필요 · 탭하여 허용" else "Notification permission required · Tap to allow"
+                        else -> if (L10n.isKorean) "켜짐 · 상단바 4칸 게이지 및 상시 축약 알림 표시" else "On · Status bar bars & compact ongoing shade"
+                    },
+                    fontSize = 10.sp,
+                    color = if (enabled && !hasPermission) DS.BatteryAmber else DS.textSecondary()
+                )
+            }
+            if (enabled && !hasPermission) {
+                Button(
+                    onClick = onRequestPermission,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Text(if (L10n.isKorean) "권한 허용" else "Allow", fontSize = 10.sp)
+                }
+            } else {
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onToggle,
+                    modifier = Modifier.scale(0.8f),
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = DS.AccentBlue
+                    )
+                )
+            }
+        }
     }
 }
 

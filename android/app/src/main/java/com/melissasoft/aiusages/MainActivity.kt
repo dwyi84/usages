@@ -1,5 +1,6 @@
 package com.melissasoft.aiusages
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,6 +16,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val usageManager = (application as AIUsagesApp).usageManager
+        intent?.data?.let { usageManager.handleGoogleOAuthRedirectUri(it) }
         lifecycleScope.launch {
             usageManager.refreshAll()
             usageManager.checkForUpdates(silent = true)
@@ -24,6 +26,14 @@ class MainActivity : ComponentActivity() {
             AIUsagesTheme {
                 MainScreen(usageManager = usageManager)
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.data?.let { uri ->
+            (application as AIUsagesApp).usageManager.handleGoogleOAuthRedirectUri(uri)
         }
     }
 

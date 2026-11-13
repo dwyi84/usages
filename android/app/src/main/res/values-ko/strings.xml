@@ -3,4 +3,7 @@
     <string name="widget_name">AI Usages 게이지</string>
     <string name="widget_description">AI 프로바이더 실시간 4칸 쿼터·잔액 게이지 위젯</string>
     <string name="widget_no_active">활성화된 AI 서비스 없음 (탭하여 설정)</string>
+    <string name="notif_channel_name">실시간 쿼터 인디케이터</string>
+    <string name="notif_channel_desc">상단바 4칸 게이지 인디케이터 및 알림창 축약 상태 카드</string>
+    <string name="notif_no_active">활성화된 AI 서비스 없음 · 탭하여 설정</string>
 </resources>

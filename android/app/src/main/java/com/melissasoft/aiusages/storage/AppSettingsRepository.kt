@@ -11,7 +11,9 @@ import java.io.File
 data class WidgetGaugeCacheEntry(
     val percent: Double,
     val status: GaugeStatus,
-    val summaryLine: String
+    val summaryLine: String,
+    val compactChip: String = "",
+    val resetHint: String = ""
 )
 
 data class WidgetCacheState(
@@ -71,6 +73,12 @@ class AppSettingsRepository(context: Context) {
             prefs.edit().putInt("googleBillingDayOfMonth", value.coerceIn(0, 31)).apply()
         }
 
+    var statusBarIndicatorEnabled: Boolean
+        get() = prefs.getBoolean("statusBarIndicatorEnabled", true)
+        set(value) {
+            prefs.edit().putBoolean("statusBarIndicatorEnabled", value).apply()
+        }
+
     fun selectedMetricKey(providerId: String): String {
         val raw = prefs.getString("selectedMetricKey_$providerId", null)
         if (!raw.isNullOrBlank()) return raw
@@ -126,6 +134,7 @@ class AppSettingsRepository(context: Context) {
         keyStore.deleteKey(providerId)
         if (providerId == "google_ai") {
             keyStore.saveGoogleOAuthJson(null)
+            keyStore.saveGoogleAccountEmail(null)
         }
         setProviderEnabled(providerId, false)
     }
@@ -141,6 +150,8 @@ class AppSettingsRepository(context: Context) {
                         put("percent", e.percent)
                         put("status", e.status.name)
                         put("summaryLine", e.summaryLine)
+                        put("compactChip", e.compactChip)
+                        put("resetHint", e.resetHint)
                     }
                 )
             }
@@ -166,7 +177,9 @@ class AppSettingsRepository(context: Context) {
                         WidgetGaugeCacheEntry(
                             percent = obj.optDouble("percent", 0.0),
                             status = status,
-                            summaryLine = obj.optString("summaryLine", "")
+                            summaryLine = obj.optString("summaryLine", ""),
+                            compactChip = obj.optString("compactChip", ""),
+                            resetHint = obj.optString("resetHint", "")
                         )
                     )
                 }

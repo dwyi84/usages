@@ -1,9 +1,18 @@
 package com.melissasoft.aiusages.ui
 
+import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -43,6 +52,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -63,6 +73,7 @@ import androidx.compose.ui.unit.sp
 import com.melissasoft.aiusages.BuildConfig
 import com.melissasoft.aiusages.model.ProviderKeySpec
 import com.melissasoft.aiusages.model.UsageTrendSummary
+import com.melissasoft.aiusages.notification.UsageNotificationManager
 import com.melissasoft.aiusages.provider.UpdateState
 import com.melissasoft.aiusages.provider.UsageManager
 import com.melissasoft.aiusages.ui.components.BatteryGaugeStrip
@@ -72,6 +83,7 @@ import com.melissasoft.aiusages.ui.components.KeyOnlyProviderCard
 import com.melissasoft.aiusages.ui.components.OpenCodeSectionCard
 import com.melissasoft.aiusages.ui.components.OpenRouterSectionCard
 import com.melissasoft.aiusages.ui.components.ProviderManagementSection
+import com.melissasoft.aiusages.ui.components.StatusBarIndicatorSettingCard
 import com.melissasoft.aiusages.ui.theme.DS
 import com.melissasoft.aiusages.ui.theme.GlassTile
 import com.melissasoft.aiusages.ui.theme.SoftDivider
@@ -94,6 +106,77 @@ fun MainScreen(usageManager: UsageManager) {
     var trendDialogData by remember { mutableStateOf<Pair<String, UsageTrendSummary>?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
 
+    var hasNotificationPermission by remember {
+        mutableStateOf(UsageNotificationManager.hasNotificationPermission(context))
+    }
+    var manualPermissionRequestStartMs by remember { mutableStateOf(0L) }
+    var askedNotificationOnLaunch by remember { mutableStateOf(false) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val elapsed = if (manualPermissionRequestStartMs > 0L) {
+            System.currentTimeMillis() - manualPermissionRequestStartMs
+        } else {
+            Long.MAX_VALUE
+        }
+        manualPermissionRequestStartMs = 0L
+        val currentGranted = UsageNotificationManager.hasNotificationPermission(context)
+        hasNotificationPermission = currentGranted
+        if (granted || currentGranted) {
+            usageManager.notifyIndicatorPermissionGranted()
+        } else if (elapsed < 350L) {
+            openAppNotificationSettings(context)
+        }
+    }
+
+    fun requestNotificationPermissionOrOpenSettings() {
+        val currentGranted = UsageNotificationManager.hasNotificationPermission(context)
+        hasNotificationPermission = currentGranted
+        if (currentGranted) {
+            usageManager.notifyIndicatorPermissionGranted()
+            return
+        }
+        val hasPostNotifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        if (hasPostNotifications) {
+            openAppNotificationSettings(context)
+        } else {
+            manualPermissionRequestStartMs = System.currentTimeMillis()
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    DisposableEffect(context) {
+        val owner = context as? LifecycleOwner
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val nowGranted = UsageNotificationManager.hasNotificationPermission(context)
+                if (nowGranted && !hasNotificationPermission) {
+                    usageManager.notifyIndicatorPermissionGranted()
+                }
+                hasNotificationPermission = nowGranted
+            }
+        }
+        owner?.lifecycle?.addObserver(observer)
+        onDispose { owner?.lifecycle?.removeObserver(observer) }
+    }
+
+    LaunchedEffect(Unit) {
+        if (
+            !askedNotificationOnLaunch &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            state.statusBarIndicatorEnabled &&
+            !hasNotificationPermission
+        ) {
+            askedNotificationOnLaunch = true
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     val openCodeFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -104,6 +187,12 @@ fun MainScreen(usageManager: UsageManager) {
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) usageManager.importGoogleStepsDb(uri)
+    }
+
+    val googleAuthFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) usageManager.importGoogleCredentialOrClientFile(uri)
     }
 
     LaunchedEffect(state.statusBannerMessage) {
@@ -286,6 +375,10 @@ fun MainScreen(usageManager: UsageManager) {
                                 selectedMetricKey = state.selectedMetricKeys["google_ai"] ?: "google_gemini_5h",
                                 billingDayOfMonth = state.googleBillingDayOfMonth,
                                 hasKey = usageManager.hasKey("google_ai"),
+                                connectedEmail = state.googleAccountEmail,
+                                savedClientId = state.googleSavedClientId,
+                                hasSavedClientSecret = state.googleHasSavedClientSecret,
+                                isOAuthPending = state.isGoogleOAuthPending,
                                 canMoveUp = canMoveUp,
                                 canMoveDown = canMoveDown,
                                 onMoveUp = { usageManager.moveProviderUp("google_ai") },
@@ -294,6 +387,24 @@ fun MainScreen(usageManager: UsageManager) {
                                 onSaveBillingDay = { usageManager.setGoogleBillingDay(it) },
                                 onSaveKey = { usageManager.saveProviderKey("google_ai", it) },
                                 onDeleteKey = { usageManager.deleteProviderKey("google_ai") },
+                                onStartOAuthSignIn = { clientId, clientSecret, useAndroidRedirect ->
+                                    usageManager.startGoogleOAuthLogin(
+                                        rawClientId = clientId,
+                                        rawClientSecret = clientSecret,
+                                        useAndroidRedirectScheme = useAndroidRedirect
+                                    ) { authUrl ->
+                                        runCatching {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authUrl)))
+                                        }.onFailure {
+                                            usageManager.cancelGoogleOAuthPending()
+                                        }
+                                    }
+                                },
+                                onSubmitManualOAuthCode = { usageManager.submitGoogleOAuthManualInput(it) },
+                                onCancelOAuth = { usageManager.cancelGoogleOAuthPending() },
+                                onImportAuthOrClientJson = {
+                                    googleAuthFileLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                                },
                                 onImportStepsDb = { googleDbLauncher.launch(arrayOf("*/*")) },
                                 onOpenTrendDetail = { title, summary -> trendDialogData = title to summary }
                             )
@@ -348,6 +459,20 @@ fun MainScreen(usageManager: UsageManager) {
                         }
                     }
                 }
+
+                SoftDivider(alpha = 0.6f)
+
+                StatusBarIndicatorSettingCard(
+                    enabled = state.statusBarIndicatorEnabled,
+                    hasPermission = hasNotificationPermission,
+                    onToggle = { enable ->
+                        usageManager.setStatusBarIndicatorEnabled(enable)
+                        if (enable && !hasNotificationPermission) {
+                            requestNotificationPermissionOrOpenSettings()
+                        }
+                    },
+                    onRequestPermission = { requestNotificationPermissionOrOpenSettings() }
+                )
 
                 SoftDivider(alpha = 0.6f)
 
@@ -512,5 +637,19 @@ private fun IntervalSegmentedControl(
                 }
             }
         }
+    }
+}
+
+private fun openAppNotificationSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    runCatching { context.startActivity(intent) }.onFailure {
+        val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { context.startActivity(fallback) }
     }
 }

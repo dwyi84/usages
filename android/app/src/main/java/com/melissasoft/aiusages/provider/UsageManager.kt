@@ -9,6 +9,7 @@ import com.melissasoft.aiusages.model.ServiceType
 import com.melissasoft.aiusages.model.ServiceUsageSnapshot
 import com.melissasoft.aiusages.model.TokenCostSnapshot
 import com.melissasoft.aiusages.model.UsageTrendSummary
+import com.melissasoft.aiusages.notification.UsageNotificationManager
 import com.melissasoft.aiusages.storage.AppSettingsRepository
 import com.melissasoft.aiusages.storage.WidgetCacheState
 import com.melissasoft.aiusages.storage.WidgetGaugeCacheEntry
@@ -55,7 +56,12 @@ data class UsageUiState(
     val pendingReleaseVersion: String? = null,
     val pendingReleaseUrl: String? = null,
     val pendingReleaseApkUrl: String? = null,
-    val statusBannerMessage: String? = null
+    val statusBannerMessage: String? = null,
+    val statusBarIndicatorEnabled: Boolean = true,
+    val googleAccountEmail: String? = null,
+    val googleSavedClientId: String? = null,
+    val googleHasSavedClientSecret: Boolean = false,
+    val isGoogleOAuthPending: Boolean = false
 )
 
 class UsageManager(context: Context) {
@@ -63,12 +69,18 @@ class UsageManager(context: Context) {
     val settings = AppSettingsRepository(appContext)
     private val openCodeProvider = OpenCodeProvider()
     private val googleAIProvider = GoogleAIProvider()
+    private val googleOAuthManager = GoogleOAuthManager()
     private val openRouterProvider = OpenRouterProvider()
     private val updaterRepository = UpdaterRepository()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var timerJob: Job? = null
+    private var oauthAwaitJob: Job? = null
     private val refreshMutex = Mutex()
+    @Volatile
+    private var pendingOAuthSession: PendingOAuthSession? = null
+    @Volatile
+    private var pendingLoopbackListener: GoogleOAuthManager.LoopbackListener? = null
 
     private val _uiState = MutableStateFlow(UsageUiState())
     val uiState: StateFlow<UsageUiState> = _uiState.asStateFlow()
@@ -113,6 +125,11 @@ class UsageManager(context: Context) {
             "opencode" to settings.selectedMetricKey("opencode"),
             "google_ai" to settings.selectedMetricKey("google_ai")
         )
+        val savedClientCfg = GoogleOAuthManager.parseOAuthClientConfig(settings.keyStore.readGoogleClientConfigJson())
+        val storedBundle = GoogleAIProvider.parseCredentialInput(settings.keyStore.readGoogleOAuthJson())
+        val resolvedEmail = settings.keyStore.readGoogleAccountEmail() ?: storedBundle?.email
+        val resolvedClientId = savedClientCfg?.clientId ?: storedBundle?.clientId
+        val resolvedHasSecret = !savedClientCfg?.clientSecret.isNullOrBlank() || !storedBundle?.clientSecret.isNullOrBlank()
         _uiState.update { state ->
             state.copy(
                 registeredProviders = descriptors,
@@ -120,7 +137,11 @@ class UsageManager(context: Context) {
                 providerOrder = order,
                 refreshIntervalSeconds = settings.refreshIntervalSeconds,
                 googleBillingDayOfMonth = settings.googleBillingDayOfMonth,
-                selectedMetricKeys = metricKeys
+                selectedMetricKeys = metricKeys,
+                statusBarIndicatorEnabled = settings.statusBarIndicatorEnabled,
+                googleAccountEmail = resolvedEmail,
+                googleSavedClientId = resolvedClientId,
+                googleHasSavedClientSecret = resolvedHasSecret
             )
         }
         recomputeGaugesAndWidget()
@@ -170,6 +191,253 @@ class UsageManager(context: Context) {
         settings.googleBillingDayOfMonth = day
         syncSettingsToState()
         scope.launch { refreshAll() }
+    }
+
+    fun setStatusBarIndicatorEnabled(enabled: Boolean) {
+        settings.statusBarIndicatorEnabled = enabled
+        syncSettingsToState()
+    }
+
+    fun notifyIndicatorPermissionGranted() {
+        if (settings.statusBarIndicatorEnabled) {
+            UsageNotificationManager.updateOrShow(appContext)
+        }
+    }
+
+    fun startGoogleOAuthLogin(
+        rawClientId: String,
+        rawClientSecret: String?,
+        useAndroidRedirectScheme: Boolean = false,
+        onOpenAuthUrl: (String) -> Unit
+    ) {
+        val cleanedClientId = rawClientId.trim()
+        if (cleanedClientId.isEmpty()) {
+            _uiState.update {
+                it.copy(
+                    statusBannerMessage = if (L10n.isKorean) {
+                        "먼저 OAuth Client ID를 입력하거나 Client JSON 파일을 불러오세요."
+                    } else {
+                        "Enter an OAuth Client ID or import Client JSON first."
+                    }
+                )
+            }
+            return
+        }
+
+        val existingCfg = GoogleOAuthManager.parseOAuthClientConfig(settings.keyStore.readGoogleClientConfigJson())
+        val cleanedSecret = rawClientSecret?.trim()?.takeIf { it.isNotBlank() }
+            ?: if (existingCfg?.clientId == cleanedClientId) existingCfg.clientSecret else null
+        val clientType = if (useAndroidRedirectScheme) {
+            GoogleOAuthClientConfig.ClientType.ANDROID
+        } else {
+            GoogleOAuthClientConfig.ClientType.DESKTOP
+        }
+        val config = GoogleOAuthClientConfig(
+            clientId = cleanedClientId,
+            clientSecret = cleanedSecret,
+            clientType = clientType
+        )
+        settings.keyStore.saveGoogleClientConfigJson(config.toJsonString())
+        cancelGoogleOAuthPending()
+
+        if (useAndroidRedirectScheme) {
+            val session = googleOAuthManager.createSession(
+                clientConfig = config,
+                redirectUri = GoogleOAuthManager.CUSTOM_ANDROID_REDIRECT_URI
+            )
+            pendingOAuthSession = session
+            _uiState.update { it.copy(isGoogleOAuthPending = true) }
+            syncSettingsToState()
+            onOpenAuthUrl(session.authorizationUrl)
+            return
+        }
+
+        oauthAwaitJob = scope.launch {
+            val listener = try {
+                withContext(Dispatchers.IO) { GoogleOAuthManager.LoopbackListener() }
+            } catch (t: Throwable) {
+                _uiState.update {
+                    it.copy(
+                        isGoogleOAuthPending = false,
+                        statusBannerMessage = if (L10n.isKorean) {
+                            "OAuth 로컬 수신 소켓 시작 실패: ${t.message}"
+                        } else {
+                            "Failed to start OAuth loopback listener: ${t.message}"
+                        }
+                    )
+                }
+                return@launch
+            }
+
+            pendingLoopbackListener = listener
+            val session = googleOAuthManager.createSession(
+                clientConfig = config,
+                redirectUri = listener.redirectUri
+            )
+            pendingOAuthSession = session
+            _uiState.update { it.copy(isGoogleOAuthPending = true) }
+            syncSettingsToState()
+            onOpenAuthUrl(session.authorizationUrl)
+
+            val codeResult = listener.awaitRedirectRequest(session.state, L10n.isKorean)
+            if (pendingOAuthSession?.state != session.state) return@launch
+            codeResult.fold(
+                onSuccess = { code -> completePendingGoogleOAuthWithCode(session, code) },
+                onFailure = { err ->
+                    pendingOAuthSession = null
+                    pendingLoopbackListener = null
+                    _uiState.update {
+                        it.copy(
+                            isGoogleOAuthPending = false,
+                            statusBannerMessage = if (L10n.isKorean) {
+                                "Google 인증 대기 종료: ${err.message}"
+                            } else {
+                                "Google sign-in ended: ${err.message}"
+                            }
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun handleGoogleOAuthRedirectUri(uri: Uri) {
+        if (uri.scheme.equals("com.melissasoft.aiusages", ignoreCase = true)) {
+            submitGoogleOAuthManualInput(uri.toString())
+        }
+    }
+
+    fun submitGoogleOAuthManualInput(rawCodeOrUrl: String) {
+        val session = pendingOAuthSession ?: return
+        val parsed = GoogleOAuthManager.extractAuthCodeFromRedirect(rawCodeOrUrl, session.state)
+        parsed.fold(
+            onSuccess = { code ->
+                oauthAwaitJob?.cancel()
+                pendingLoopbackListener?.close()
+                pendingLoopbackListener = null
+                scope.launch { completePendingGoogleOAuthWithCode(session, code) }
+            },
+            onFailure = { err ->
+                _uiState.update {
+                    it.copy(
+                        statusBannerMessage = if (L10n.isKorean) {
+                            "인증 응답 확인 실패: ${err.message}"
+                        } else {
+                            "Invalid OAuth response: ${err.message}"
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    fun cancelGoogleOAuthPending() {
+        oauthAwaitJob?.cancel()
+        oauthAwaitJob = null
+        pendingLoopbackListener?.close()
+        pendingLoopbackListener = null
+        pendingOAuthSession = null
+        _uiState.update { it.copy(isGoogleOAuthPending = false) }
+    }
+
+    private suspend fun completePendingGoogleOAuthWithCode(session: PendingOAuthSession, code: String) {
+        val tokenResult = googleOAuthManager.exchangeCodeForTokens(session, code)
+        pendingOAuthSession = null
+        pendingLoopbackListener = null
+        tokenResult.fold(
+            onSuccess = { bundle ->
+                settings.keyStore.saveGoogleOAuthJson(bundle.toJsonString())
+                settings.saveProviderKey("google_ai", bundle.accessToken)
+                settings.keyStore.saveGoogleAccountEmail(bundle.email)
+                _uiState.update {
+                    it.copy(
+                        isGoogleOAuthPending = false,
+                        statusBannerMessage = if (L10n.isKorean) {
+                            "Google 계정 인증 완료${bundle.email?.let { e -> " ($e)" } ?: ""}"
+                        } else {
+                            "Google account authenticated${bundle.email?.let { e -> " ($e)" } ?: ""}"
+                        }
+                    )
+                }
+                syncSettingsToState()
+                refreshAll()
+            },
+            onFailure = { err ->
+                _uiState.update {
+                    it.copy(
+                        isGoogleOAuthPending = false,
+                        statusBannerMessage = if (L10n.isKorean) {
+                            "Google 토큰 교환 실패: ${err.message}"
+                        } else {
+                            "Google token exchange failed: ${err.message}"
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    fun importGoogleCredentialOrClientFile(uri: Uri) {
+        scope.launch(Dispatchers.IO) {
+            val content = runCatching {
+                appContext.contentResolver.openInputStream(uri)?.use { stream ->
+                    stream.readBytes().toString(Charsets.UTF_8).trim()
+                }
+            }.getOrNull().orEmpty()
+
+            val bundle = GoogleAIProvider.parseCredentialInput(content)
+            val clientCfg = if (bundle == null) GoogleOAuthManager.parseOAuthClientConfig(content) else null
+
+            withContext(Dispatchers.Main.immediate) {
+                when {
+                    bundle != null -> {
+                        saveProviderKey("google_ai", content)
+                        if (!bundle.clientId.isNullOrBlank()) {
+                            settings.keyStore.saveGoogleClientConfigJson(
+                                GoogleOAuthClientConfig(bundle.clientId, bundle.clientSecret).toJsonString()
+                            )
+                        }
+                        if (!bundle.email.isNullOrBlank()) {
+                            settings.keyStore.saveGoogleAccountEmail(bundle.email)
+                        }
+                        _uiState.update {
+                            it.copy(
+                                statusBannerMessage = if (L10n.isKorean) {
+                                    "Google 인증 토큰 파일을 불러왔습니다."
+                                } else {
+                                    "Imported Google auth token file."
+                                }
+                            )
+                        }
+                        syncSettingsToState()
+                    }
+                    clientCfg != null -> {
+                        settings.keyStore.saveGoogleClientConfigJson(clientCfg.toJsonString())
+                        _uiState.update {
+                            it.copy(
+                                statusBannerMessage = if (L10n.isKorean) {
+                                    "OAuth Client JSON을 불러왔습니다. 'Google 계정으로 인증'을 눌러 로그인하세요."
+                                } else {
+                                    "Imported OAuth Client JSON. Tap 'Sign in with Google' to authenticate."
+                                }
+                            )
+                        }
+                        syncSettingsToState()
+                    }
+                    else -> {
+                        _uiState.update {
+                            it.copy(
+                                statusBannerMessage = if (L10n.isKorean) {
+                                    "유효한 Google 인증 또는 OAuth Client JSON 파일이 아닙니다."
+                                } else {
+                                    "Not a valid Google credential or OAuth Client JSON file."
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun saveProviderKey(providerId: String, rawInput: String) {
@@ -298,6 +566,13 @@ class UsageManager(context: Context) {
                             onRefreshedAccessToken = { newToken ->
                                 settings.keyStore.saveKey("google_ai", newToken)
                             },
+                            onRefreshedBundle = { updatedBundle ->
+                                settings.keyStore.saveGoogleOAuthJson(updatedBundle.toJsonString())
+                                settings.keyStore.saveKey("google_ai", updatedBundle.accessToken)
+                                if (!updatedBundle.email.isNullOrBlank()) {
+                                    settings.keyStore.saveGoogleAccountEmail(updatedBundle.email)
+                                }
+                            },
                             now = now
                         )
                     } else current.googleAISnapshot
@@ -413,7 +688,15 @@ class UsageManager(context: Context) {
                     }
                     val line = "OpenCode Go ($label): ${pct.toInt()}% ${L10n.remaining}"
                     gaugeItems.add(BatteryGaugeRenderer.GaugeItem(pct, status))
-                    widgetEntries.add(WidgetGaugeCacheEntry(pct, status, line))
+                    widgetEntries.add(
+                        WidgetGaugeCacheEntry(
+                            percent = pct,
+                            status = status,
+                            summaryLine = line,
+                            compactChip = "OC ${pct.toInt()}%",
+                            resetHint = resetStr.takeIf { it != "-" }?.let { "OC $it" } ?: ""
+                        )
+                    )
                     tooltips.add("$line ($resetStr)")
                     nearestDays = minOf(nearestDays, oc.daysUntilBilling)
                 }
@@ -454,14 +737,31 @@ class UsageManager(context: Context) {
                             groups.geminiFiveHourResetString
                         )
                     }
-                    val status = if (g.status == GaugeStatus.RATE_LIMITED) {
-                        GaugeStatus.RATE_LIMITED
-                    } else {
-                        pctToStatus(pct)
+                    val status = when {
+                        g.status == GaugeStatus.RATE_LIMITED -> GaugeStatus.RATE_LIMITED
+                        g.status == GaugeStatus.ERROR -> GaugeStatus.ERROR
+                        else -> pctToStatus(pct)
                     }
-                    val line = "Google AI ($label): ${pct.toInt()}% ${L10n.remaining}"
+                    val line = if (g.status == GaugeStatus.ERROR && !groups.hasAnyKnownQuota) {
+                        "Google AI: ${g.statusMessage ?: "Auth error"}"
+                    } else {
+                        "Google AI ($label): ${pct.toInt()}% ${L10n.remaining}"
+                    }
+                    val chip = if (g.status == GaugeStatus.ERROR && !groups.hasAnyKnownQuota) {
+                        "Google !"
+                    } else {
+                        "Google ${pct.toInt()}%"
+                    }
                     gaugeItems.add(BatteryGaugeRenderer.GaugeItem(pct, status))
-                    widgetEntries.add(WidgetGaugeCacheEntry(pct, status, line))
+                    widgetEntries.add(
+                        WidgetGaugeCacheEntry(
+                            percent = pct,
+                            status = status,
+                            summaryLine = line,
+                            compactChip = chip,
+                            resetHint = resetStr.takeIf { it != "-" }?.let { "Google $it" } ?: ""
+                        )
+                    )
                     tooltips.add("$line ($resetStr)")
                     if (settings.googleBillingDayOfMonth > 0) {
                         nearestDays = minOf(nearestDays, g.daysUntilBilling)
@@ -472,9 +772,17 @@ class UsageManager(context: Context) {
                     if (!or.isConnected) continue
                     val bal = or.balanceUSD
                     val pct = ((bal / 10.0) * 100.0).coerceIn(0.0, 100.0)
-                    val line = "OpenRouter: $${String.format(Locale.US, "%.2f", bal)}"
+                    val formattedBal = "$${String.format(Locale.US, "%.2f", bal)}"
+                    val line = "OpenRouter: $formattedBal"
                     gaugeItems.add(BatteryGaugeRenderer.GaugeItem(pct, or.status))
-                    widgetEntries.add(WidgetGaugeCacheEntry(pct, or.status, line))
+                    widgetEntries.add(
+                        WidgetGaugeCacheEntry(
+                            percent = pct,
+                            status = or.status,
+                            summaryLine = line,
+                            compactChip = "OR $formattedBal"
+                        )
+                    )
                     tooltips.add(line)
                 }
             }
@@ -491,6 +799,11 @@ class UsageManager(context: Context) {
             )
         )
         BatteryGaugeWidgetProvider.updateAllWidgets(appContext)
+        if (settings.statusBarIndicatorEnabled) {
+            UsageNotificationManager.updateOrShow(appContext)
+        } else {
+            UsageNotificationManager.dismiss(appContext)
+        }
 
         _uiState.update {
             it.copy(

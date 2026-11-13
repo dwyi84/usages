@@ -32,8 +32,22 @@ data class GoogleOAuthBundle(
     val accessToken: String,
     val refreshToken: String? = null,
     val clientId: String? = null,
-    val clientSecret: String? = null
-)
+    val clientSecret: String? = null,
+    val email: String? = null
+) {
+    fun toJsonString(): String {
+        val tokenObj = JSONObject().apply {
+            put("access_token", accessToken)
+            if (!refreshToken.isNullOrBlank()) put("refresh_token", refreshToken)
+        }
+        return JSONObject().apply {
+            put("token", tokenObj)
+            if (!clientId.isNullOrBlank()) put("client_id", clientId)
+            if (!clientSecret.isNullOrBlank()) put("client_secret", clientSecret)
+            if (!email.isNullOrBlank()) put("email", email)
+        }.toString()
+    }
+}
 
 class GoogleAIProvider(
     private val client: OkHttpClient = defaultHttpClient(),
@@ -58,11 +72,12 @@ class GoogleAIProvider(
         billingDayOfMonth: Int,
         importedStepsDbFile: File? = null,
         onRefreshedAccessToken: ((String) -> Unit)? = null,
+        onRefreshedBundle: ((GoogleOAuthBundle) -> Unit)? = null,
         now: Instant = Instant.now()
     ): ServiceUsageSnapshot = withContext(Dispatchers.IO) {
         val parsedBundle = parseCredentialInput(oauthBundleJson ?: rawCredentialInput)
         val trimmedRaw = rawCredentialInput?.trim().orEmpty()
-        val bundle = if (
+        var bundle = if (
             parsedBundle != null &&
             trimmedRaw.isNotEmpty() &&
             !trimmedRaw.startsWith("{") &&
@@ -88,19 +103,24 @@ class GoogleAIProvider(
                 status = GaugeStatus.RATE_LIMITED,
                 billingDayOfMonth = billingDayOfMonth,
                 importedStepsDbFile = importedStepsDbFile,
-                now = now
+                now = now,
+                statusMessage = if (L10n.isKorean) "요청 한도 초과(429) · 잠시 후 재시도" else "Rate limited (429) · waiting"
             )
         }
 
-        var tokenToUse = bundle.accessToken
-        var result = fetchViaDirectRest(tokenToUse, now)
+        var result = fetchViaDirectRest(bundle.accessToken, now)
 
         if (result.unauthorized && !bundle.refreshToken.isNullOrBlank() && !bundle.clientId.isNullOrBlank()) {
             val refreshed = refreshAccessToken(bundle)
-            if (!refreshed.isNullOrBlank()) {
-                tokenToUse = refreshed
-                onRefreshedAccessToken?.invoke(refreshed)
-                result = fetchViaDirectRest(tokenToUse, now)
+            if (refreshed != null) {
+                val updatedBundle = bundle.copy(
+                    accessToken = refreshed.accessToken,
+                    refreshToken = refreshed.refreshToken ?: bundle.refreshToken
+                )
+                bundle = updatedBundle
+                onRefreshedAccessToken?.invoke(refreshed.accessToken)
+                onRefreshedBundle?.invoke(updatedBundle)
+                result = fetchViaDirectRest(updatedBundle.accessToken, now)
             }
         }
 
@@ -121,16 +141,19 @@ class GoogleAIProvider(
                 status = GaugeStatus.RATE_LIMITED,
                 billingDayOfMonth = billingDayOfMonth,
                 importedStepsDbFile = importedStepsDbFile,
-                now = now
+                now = now,
+                statusMessage = if (L10n.isKorean) "요청 한도 초과(429) · 잠시 후 재시도" else "Rate limited (429) · waiting"
             )
         }
 
+        val diagnostic = formatErrorDiagnostic(result.lastErrorCode, result.errorDetail, L10n.isKorean)
         if (hasFetchedOnce || cachedLimits.hasAnyKnownQuota) {
             return@withContext buildSnapshot(
                 status = GaugeStatus.WARNING,
                 billingDayOfMonth = billingDayOfMonth,
                 importedStepsDbFile = importedStepsDbFile,
-                now = now
+                now = now,
+                statusMessage = diagnostic
             )
         }
 
@@ -138,23 +161,33 @@ class GoogleAIProvider(
         ServiceUsageSnapshot(
             service = ServiceType.GOOGLE_AI,
             planName = "Google AI Pro Plan",
-            status = GaugeStatus.WARNING,
+            status = if (result.lastErrorCode == 401 || result.lastErrorCode == 403) GaugeStatus.ERROR else GaugeStatus.WARNING,
             lastUpdated = now,
             isAvailable = true,
             googleGroups = GoogleAIGroupLimits(),
-            trendSummary = trend
+            trendSummary = trend,
+            statusMessage = diagnostic
         )
     }
 
     private data class RestFetchOutcome(
         val limits: GoogleAIGroupLimits? = null,
-        val unauthorized: Boolean = false
+        val lastErrorCode: Int? = null,
+        val errorDetail: String? = null
+    ) {
+        val unauthorized: Boolean get() = lastErrorCode == 401 || lastErrorCode == 403
+    }
+
+    private data class TokenRefreshResult(
+        val accessToken: String,
+        val refreshToken: String? = null
     )
 
     private fun fetchViaDirectRest(token: String, now: Instant): RestFetchOutcome {
         val projects = listOf("aicode-consumers", "default-cli-project", "")
         val jsonMedia = "application/json; charset=utf-8".toMediaType()
-        var sawUnauthorized = false
+        var lastErrorCode: Int? = null
+        var lastErrorDetail: String? = null
 
         for (url in endpoints) {
             for (project in projects) {
@@ -173,28 +206,31 @@ class GoogleAIProvider(
                         if (resp.code == 429) {
                             val retrySec = resp.header("Retry-After")?.toLongOrNull() ?: 300L
                             rateLimitUntil = now.plusSeconds(retrySec.coerceAtLeast(30L))
-                            return RestFetchOutcome(null, unauthorized = false)
+                            return RestFetchOutcome(null, 429, "RATE_LIMITED")
                         }
-                        if (resp.code == 401 || resp.code == 403) {
-                            sawUnauthorized = true
-                        }
+                        val body = resp.body?.string() ?: ""
                         if (resp.isSuccessful) {
-                            val body = resp.body?.string() ?: ""
                             val parsed = parseRestQuotaJson(body, cachedLimits, now, L10n.isKorean)
                             if (parsed != null) {
-                                return RestFetchOutcome(parsed, unauthorized = false)
+                                return RestFetchOutcome(parsed)
                             }
+                        } else {
+                            lastErrorCode = resp.code
+                            lastErrorDetail = extractGoogleErrorReason(body) ?: lastErrorDetail
                         }
                     }
-                } catch (_: Throwable) {
+                } catch (e: Throwable) {
+                    if (lastErrorCode == null) {
+                        lastErrorDetail = e.message
+                    }
                     continue
                 }
             }
         }
-        return RestFetchOutcome(null, unauthorized = sawUnauthorized)
+        return RestFetchOutcome(null, lastErrorCode, lastErrorDetail)
     }
 
-    private fun refreshAccessToken(bundle: GoogleOAuthBundle): String? {
+    private fun refreshAccessToken(bundle: GoogleOAuthBundle): TokenRefreshResult? {
         val refreshToken = bundle.refreshToken ?: return null
         val clientId = bundle.clientId ?: return null
         val formBuilder = FormBody.Builder()
@@ -214,7 +250,9 @@ class GoogleAIProvider(
                 if (!resp.isSuccessful) return null
                 val body = resp.body?.string() ?: return null
                 val json = JSONObject(body)
-                json.optString("access_token", "").takeIf { it.isNotBlank() }
+                val access = json.optString("access_token", "").takeIf { it.isNotBlank() } ?: return null
+                val rotatedRefresh = json.optString("refresh_token", "").takeIf { it.isNotBlank() }
+                TokenRefreshResult(access, rotatedRefresh)
             }
         } catch (_: Throwable) {
             null
@@ -225,7 +263,8 @@ class GoogleAIProvider(
         status: GaugeStatus,
         billingDayOfMonth: Int,
         importedStepsDbFile: File?,
-        now: Instant
+        now: Instant,
+        statusMessage: String? = null
     ): ServiceUsageSnapshot {
         val (dateStr, daysRem) = calculateNextBilling(
             dayOfMonth = billingDayOfMonth,
@@ -238,10 +277,10 @@ class GoogleAIProvider(
             daysUntilBilling = daysRem
         )
         val overallRemaining = limits.overallRemainingPercent
-        val resolvedStatus = if (status == GaugeStatus.RATE_LIMITED) {
-            GaugeStatus.RATE_LIMITED
-        } else {
-            when {
+        val resolvedStatus = when {
+            status == GaugeStatus.RATE_LIMITED -> GaugeStatus.RATE_LIMITED
+            status == GaugeStatus.WARNING && statusMessage != null -> GaugeStatus.WARNING
+            else -> when {
                 overallRemaining <= 15.0 -> GaugeStatus.CRITICAL
                 overallRemaining <= 35.0 -> GaugeStatus.WARNING
                 else -> GaugeStatus.NORMAL
@@ -258,7 +297,8 @@ class GoogleAIProvider(
             lastUpdated = now,
             isAvailable = true,
             googleGroups = limits,
-            trendSummary = readStepsTrendIfPresent(importedStepsDbFile, now)
+            trendSummary = readStepsTrendIfPresent(importedStepsDbFile, now),
+            statusMessage = statusMessage
         )
     }
 
@@ -373,11 +413,15 @@ class GoogleAIProvider(
                     val clientSecret = clientObj.optString("client_secret", "")
                         .ifBlank { root.optString("client_secret", "") }
                         .takeIf { it.isNotBlank() }
+                    val email = root.optString("email", "")
+                        .ifBlank { tokenObj.optString("email", "") }
+                        .takeIf { it.isNotBlank() }
                     GoogleOAuthBundle(
                         accessToken = access,
                         refreshToken = refresh,
                         clientId = clientId,
-                        clientSecret = clientSecret
+                        clientSecret = clientSecret,
+                        email = email
                     )
                 } catch (_: Throwable) {
                     null
@@ -385,6 +429,58 @@ class GoogleAIProvider(
             }
 
             return GoogleOAuthBundle(accessToken = str)
+        }
+
+        fun extractGoogleErrorReason(rawBody: String?): String? {
+            if (rawBody.isNullOrBlank()) return null
+            return try {
+                val root = JSONObject(rawBody)
+                val err = root.optJSONObject("error") ?: root
+                val details = err.optJSONArray("details")
+                var detailReason = ""
+                if (details != null) {
+                    for (i in 0 until details.length()) {
+                        val candidate = details.optJSONObject(i)?.optString("reason", "").orEmpty()
+                        if (candidate.isNotBlank()) {
+                            detailReason = candidate
+                            break
+                        }
+                    }
+                }
+                val topStatus = err.optString("status", "")
+                    .ifBlank { err.optString("reason", "") }
+                when {
+                    detailReason.isNotBlank() && topStatus.isNotBlank() && detailReason != topStatus ->
+                        "$detailReason / $topStatus"
+                    detailReason.isNotBlank() -> detailReason
+                    topStatus.isNotBlank() -> topStatus
+                    else -> err.optString("message", "").take(90).takeIf { it.isNotBlank() }
+                }
+            } catch (_: Throwable) {
+                null
+            }
+        }
+
+        fun formatErrorDiagnostic(code: Int?, detail: String?, isKorean: Boolean): String? {
+            return when (code) {
+                401 -> if (isKorean) {
+                    "HTTP 401: 인증 토큰이 만료되었거나 유효하지 않습니다."
+                } else {
+                    "HTTP 401: OAuth token expired or invalid."
+                }
+                403 -> {
+                    val suffix = detail?.let { " ($it)" } ?: ""
+                    if (isKorean) {
+                        "HTTP 403$suffix: Google 비공개 쿼터 API(cloudcode-pa) 권한이 없습니다."
+                    } else {
+                        "HTTP 403$suffix: Access denied by private Google quota API (cloudcode-pa)."
+                    }
+                }
+                null -> detail?.let {
+                    if (isKorean) "연결 확인 필요: $it" else "Connection issue: $it"
+                }
+                else -> "HTTP $code${detail?.let { " ($it)" } ?: ""}"
+            }
         }
 
         fun calculateNextBilling(

@@ -2,10 +2,16 @@ package com.melissasoft.aiusages
 
 import com.melissasoft.aiusages.model.GaugeStatus
 import com.melissasoft.aiusages.model.GoogleAIGroupLimits
+import com.melissasoft.aiusages.notification.UsageNotificationManager
 import com.melissasoft.aiusages.provider.GoogleAIProvider
+import com.melissasoft.aiusages.provider.GoogleOAuthBundle
+import com.melissasoft.aiusages.provider.GoogleOAuthClientConfig
+import com.melissasoft.aiusages.provider.GoogleOAuthManager
 import com.melissasoft.aiusages.provider.OpenCodeProvider
 import com.melissasoft.aiusages.provider.OpenRouterProvider
 import com.melissasoft.aiusages.provider.UpdaterRepository
+import com.melissasoft.aiusages.storage.WidgetCacheState
+import com.melissasoft.aiusages.storage.WidgetGaugeCacheEntry
 import com.melissasoft.aiusages.util.ISO8601Parser
 import com.melissasoft.aiusages.widget.BatteryGaugeRenderer
 import kotlinx.coroutines.test.runTest
@@ -18,6 +24,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -384,5 +391,214 @@ class UsageCorrectnessTests {
         assertEquals(0xFFFF9E0D.toInt(), BatteryGaugeRenderer.resolveColorArgb(35.0, GaugeStatus.WARNING))
         assertEquals(0xFF2ED159.toInt(), BatteryGaugeRenderer.resolveColorArgb(80.0, GaugeStatus.NORMAL))
         assertEquals(0xFFAF52DE.toInt(), BatteryGaugeRenderer.resolveColorArgb(90.0, GaugeStatus.RATE_LIMITED))
+    }
+
+    @Test
+    fun googleOAuthPkceClientParsingAndRedirectHandling() {
+        val verifier = GoogleOAuthManager.generateCodeVerifier()
+        assertTrue(verifier.length >= 43)
+        assertFalse(verifier.contains("="))
+
+        val expectedChallenge = Base64.getUrlEncoder().withoutPadding().encodeToString(
+            MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII))
+        )
+        assertEquals(expectedChallenge, GoogleOAuthManager.computeCodeChallengeS256(verifier))
+
+        val installedJson = """{"installed":{"client_id":"123-abc.apps.googleusercontent.com","client_secret":"sec-1"}}"""
+        val installedCfg = GoogleOAuthManager.parseOAuthClientConfig(installedJson)
+        assertNotNull(installedCfg)
+        assertEquals("123-abc.apps.googleusercontent.com", installedCfg!!.clientId)
+        assertEquals("sec-1", installedCfg.clientSecret)
+        assertEquals(GoogleOAuthClientConfig.ClientType.DESKTOP, installedCfg.clientType)
+
+        val webJson = """{"web":{"client_id":"456-web.apps.googleusercontent.com"}}"""
+        val webCfg = GoogleOAuthManager.parseOAuthClientConfig(webJson)
+        assertNotNull(webCfg)
+        assertEquals("456-web.apps.googleusercontent.com", webCfg!!.clientId)
+        assertNull(webCfg.clientSecret)
+        assertEquals(GoogleOAuthClientConfig.ClientType.WEB, webCfg.clientType)
+
+        val authUrl = GoogleOAuthManager.buildAuthorizationUrl(
+            clientId = installedCfg.clientId,
+            redirectUri = "http://127.0.0.1:43210/oauth/callback",
+            codeChallenge = expectedChallenge,
+            state = "state_xyz"
+        )
+        assertTrue(authUrl.contains("code_challenge_method=S256"))
+        assertTrue(authUrl.contains("state=state_xyz"))
+        assertTrue(authUrl.contains("client_id=123-abc.apps.googleusercontent.com"))
+
+        val valid = GoogleOAuthManager.extractAuthCodeFromRedirect(
+            "http://127.0.0.1:43210/oauth/callback?code=4/auth_code_1&state=state_xyz",
+            "state_xyz"
+        )
+        assertTrue(valid.isSuccess)
+        assertEquals("4/auth_code_1", valid.getOrNull())
+
+        val mismatch = GoogleOAuthManager.extractAuthCodeFromRedirect(
+            "com.melissasoft.aiusages:/oauth2redirect?code=4/abc&state=wrong",
+            "state_xyz"
+        )
+        assertTrue(mismatch.isFailure)
+
+        val errorRedirect = GoogleOAuthManager.extractAuthCodeFromRedirect(
+            "com.melissasoft.aiusages:/oauth2redirect?error=access_denied&state=state_xyz",
+            "state_xyz"
+        )
+        assertTrue(errorRedirect.isFailure)
+    }
+
+    @Test
+    fun googleOAuthCodeExchangeAndUserInfoViaMockWebServer() = runTest {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"access_token":"ya29.fresh","refresh_token":"1//refreshed","token_type":"Bearer"}""")
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"email":"user@example.com"}""")
+        )
+        server.start()
+        try {
+            val oauthManager = GoogleOAuthManager(
+                client = OkHttpClient(),
+                authEndpoint = server.url("/auth").toString(),
+                tokenEndpoint = server.url("/token").toString(),
+                userInfoEndpoint = server.url("/userinfo").toString()
+            )
+            val cfg = GoogleOAuthClientConfig(clientId = "client-1", clientSecret = "secret-1")
+            val session = oauthManager.createSession(cfg, GoogleOAuthManager.CUSTOM_ANDROID_REDIRECT_URI)
+            val res = oauthManager.exchangeCodeForTokens(session, "auth-code-99")
+            assertTrue(res.isSuccess)
+            val bundle = res.getOrThrow()
+            assertEquals("ya29.fresh", bundle.accessToken)
+            assertEquals("1//refreshed", bundle.refreshToken)
+            assertEquals("user@example.com", bundle.email)
+            assertEquals("client-1", bundle.clientId)
+
+            val tokenReq = server.takeRequest()
+            val formBody = tokenReq.body.readUtf8()
+            assertTrue(formBody.contains("grant_type=authorization_code"))
+            assertTrue(formBody.contains("code=auth-code-99"))
+            assertTrue(formBody.contains("code_verifier="))
+
+            val userReq = server.takeRequest()
+            assertEquals("Bearer ya29.fresh", userReq.getHeader("Authorization"))
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun googleAiHttp403ServiceDisabledAndRotatedRefreshToken() = runTest {
+        val server = MockWebServer()
+        val forbiddenBody = """{"error":{"code":403,"status":"PERMISSION_DENIED","details":[{"reason":"SERVICE_DISABLED"}]}}"""
+        repeat(3) {
+            server.enqueue(MockResponse().setResponseCode(403).setBody(forbiddenBody))
+        }
+        server.start()
+        try {
+            val provider = GoogleAIProvider(
+                client = OkHttpClient(),
+                endpoints = listOf(server.url("/v1internal:retrieveUserQuotaSummary").toString()),
+                oauthTokenUrl = server.url("/token").toString()
+            )
+            val snapshot = provider.fetchUsageSnapshot(
+                rawCredentialInput = null,
+                oauthBundleJson = """{"access_token":"ya29.no_private_scope"}""",
+                billingDayOfMonth = 0
+            )
+            assertEquals(GaugeStatus.ERROR, snapshot.status)
+            val diag = snapshot.statusMessage.orEmpty()
+            assertTrue(diag.contains("403"))
+            assertTrue(diag.contains("SERVICE_DISABLED"))
+            assertTrue(diag.contains("cloudcode-pa"))
+        } finally {
+            server.shutdown()
+        }
+
+        val rotateServer = MockWebServer()
+        rotateServer.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"unauthorized"}"""))
+        rotateServer.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"unauthorized"}"""))
+        rotateServer.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"unauthorized"}"""))
+        rotateServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"access_token":"ya29.new_access","refresh_token":"1//rotated_refresh"}""")
+        )
+        rotateServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"groups":[{"displayName":"Gemini Models","buckets":[{"bucketId":"gemini_5h","remainingFraction":0.85,"resetTime":"2026-11-14T12:00:00Z"}]}]}""")
+        )
+        rotateServer.start()
+        try {
+            val provider = GoogleAIProvider(
+                client = OkHttpClient(),
+                endpoints = listOf(rotateServer.url("/v1internal:retrieveUserQuotaSummary").toString()),
+                oauthTokenUrl = rotateServer.url("/token").toString()
+            )
+            var persistedBundle: GoogleOAuthBundle? = null
+            val bundleInput = GoogleOAuthBundle(
+                accessToken = "ya29.stale",
+                refreshToken = "1//initial_refresh",
+                clientId = "cid-rotate",
+                email = "dev@example.com"
+            ).toJsonString()
+            val snapshot = provider.fetchUsageSnapshot(
+                rawCredentialInput = null,
+                oauthBundleJson = bundleInput,
+                billingDayOfMonth = 0,
+                onRefreshedBundle = { persistedBundle = it }
+            )
+            assertEquals(GaugeStatus.NORMAL, snapshot.status)
+            assertEquals(85.0, snapshot.googleGroups.overallRemainingPercent, 0.01)
+            assertNotNull(persistedBundle)
+            assertEquals("ya29.new_access", persistedBundle!!.accessToken)
+            assertEquals("1//rotated_refresh", persistedBundle!!.refreshToken)
+            assertEquals("dev@example.com", persistedBundle!!.email)
+        } finally {
+            rotateServer.shutdown()
+        }
+    }
+
+    @Test
+    fun statusBarIndicatorGeometryAndCompactSummary() {
+        for (bars in 1..3) {
+            for (hasDot in listOf(false, true)) {
+                val geom = BatteryGaugeRenderer.computeStatusBarLayout(bars, hasDot, density = 3f)
+                assertEquals(72f, geom.canvasWidthPx, 0.01f)
+                assertEquals(72f, geom.canvasHeightPx, 0.01f)
+                assertTrue(geom.startXPx >= 0f)
+                val endX = geom.startXPx + bars * geom.barWidthPx + (bars - 1) * geom.barSpacingPx
+                assertTrue(endX <= geom.canvasWidthPx)
+                assertTrue(geom.topYPx >= 0f)
+                assertTrue(geom.bottomYPx <= geom.canvasHeightPx)
+            }
+        }
+
+        val emptySummary = UsageNotificationManager.formatCompactSummary(
+            cache = null,
+            noActiveFallback = "No active providers",
+            isKorean = false
+        )
+        assertEquals("No active providers", emptySummary.primaryLine)
+
+        val cache = WidgetCacheState(
+            entries = listOf(
+                WidgetGaugeCacheEntry(88.0, GaugeStatus.NORMAL, "OpenCode 5h 88%", "OC 88%", "Reset 2h 10m"),
+                WidgetGaugeCacheEntry(54.0, GaugeStatus.NORMAL, "OpenRouter $12.40", "OR $12.40")
+            ),
+            daysUntilReset = 2,
+            updatedAtText = "20:30"
+        )
+        val summary = UsageNotificationManager.formatCompactSummary(cache, "None", isKorean = false)
+        assertEquals("OC 88% · OR $12.40", summary.primaryLine)
+        assertEquals("Reset 2h 10m · Updated 20:30", summary.secondaryLine)
+        assertTrue(summary.expandedLines.contains("OpenCode 5h 88%"))
+        assertTrue(summary.expandedLines.contains("OpenRouter $12.40"))
     }
 }

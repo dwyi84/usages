@@ -59,4 +59,26 @@ class SecureKeyStore(context: Context) {
 
     fun readGoogleOAuthJson(): String? =
         prefs.getString("google_ai_oauth_json", null)?.takeIf { it.isNotBlank() }
+
+    fun saveGoogleClientConfigJson(rawJson: String?) {
+        if (rawJson.isNullOrBlank()) {
+            prefs.edit().remove("google_ai_oauth_client_json").apply()
+        } else {
+            prefs.edit().putString("google_ai_oauth_client_json", rawJson).apply()
+        }
+    }
+
+    fun readGoogleClientConfigJson(): String? =
+        prefs.getString("google_ai_oauth_client_json", null)?.takeIf { it.isNotBlank() }
+
+    fun saveGoogleAccountEmail(email: String?) {
+        if (email.isNullOrBlank()) {
+            prefs.edit().remove("google_ai_account_email").apply()
+        } else {
+            prefs.edit().putString("google_ai_account_email", email.trim()).apply()
+        }
+    }
+
+    fun readGoogleAccountEmail(): String? =
+        prefs.getString("google_ai_account_email", null)?.takeIf { it.isNotBlank() }
 }

@@ -210,7 +210,8 @@ data class ServiceUsageSnapshot(
     val isAvailable: Boolean = false,
     val openCodeWindows: OpenCodeWindows = OpenCodeWindows(),
     val googleGroups: GoogleAIGroupLimits = GoogleAIGroupLimits(),
-    val trendSummary: UsageTrendSummary = UsageTrendSummary()
+    val trendSummary: UsageTrendSummary = UsageTrendSummary(),
+    val statusMessage: String? = null
 )
 
 data class TokenCostSnapshot(

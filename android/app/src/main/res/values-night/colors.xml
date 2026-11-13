@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="notif_text_primary">#FFF3F6FA</color>
+    <color name="notif_text_secondary">#B3F3F6FA</color>
+    <color name="notif_icon_tint">#FFDCE3EE</color>
+</resources>

@@ -3,4 +3,7 @@
     <string name="widget_name">AI Usages Gauge</string>
     <string name="widget_description">Real-time 4-segment quota &amp; balance gauges for AI providers</string>
     <string name="widget_no_active">No active AI services (tap to configure)</string>
+    <string name="notif_channel_name">Live Quota Indicator</string>
+    <string name="notif_channel_desc">Persistent status bar gauge icon and compact shade card for AI quotas</string>
+    <string name="notif_no_active">No active services · Tap to configure</string>
 </resources>
