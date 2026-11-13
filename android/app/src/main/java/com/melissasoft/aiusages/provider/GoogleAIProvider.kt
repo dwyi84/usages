@@ -146,7 +146,18 @@ class GoogleAIProvider(
             )
         }
 
-        val diagnostic = formatErrorDiagnostic(result.lastErrorCode, result.errorDetail, L10n.isKorean)
+        val hadMissingClientIdForRefresh = result.unauthorized &&
+            !bundle.refreshToken.isNullOrBlank() &&
+            bundle.clientId.isNullOrBlank()
+        val diagnostic = if (result.lastErrorCode == 401 && hadMissingClientIdForRefresh) {
+            if (L10n.isKorean) {
+                "HTTP 401: 토큰이 만료되었고 자동 갱신용 client_id가 없습니다. 새 인증 JSON 또는 토큰을 가져오세요."
+            } else {
+                "HTTP 401: Token expired and JSON lacks client_id for auto-refresh. Import a fresh auth file."
+            }
+        } else {
+            formatErrorDiagnostic(result.lastErrorCode, result.errorDetail, L10n.isKorean)
+        }
         if (hasFetchedOnce || cachedLimits.hasAnyKnownQuota) {
             return@withContext buildSnapshot(
                 status = GaugeStatus.WARNING,
@@ -383,13 +394,15 @@ class GoogleAIProvider(
             .build()
 
         fun parseCredentialInput(rawInput: String?): GoogleOAuthBundle? {
-            var str = rawInput?.trim().orEmpty()
+            var str = rawInput?.trim()?.removePrefix("\uFEFF").orEmpty()
             if (str.isEmpty()) return null
 
             if (str.startsWith("go-keyring-base64:")) {
                 val encoded = str.removePrefix("go-keyring-base64:")
                 str = try {
-                    Base64.getDecoder().decode(encoded).toString(Charsets.UTF_8).trim()
+                    Base64.getDecoder().decode(encoded).toString(Charsets.UTF_8)
+                        .trim()
+                        .removePrefix("\uFEFF")
                 } catch (_: Throwable) {
                     return null
                 }
@@ -402,15 +415,25 @@ class GoogleAIProvider(
                     val access = tokenObj.optString("access_token", "")
                         .ifBlank { tokenObj.optString("accessToken", "") }
                         .ifBlank { root.optString("access_token", "") }
+                        .ifBlank { root.optString("accessToken", "") }
                     if (access.isBlank()) return null
                     val refresh = tokenObj.optString("refresh_token", "")
+                        .ifBlank { tokenObj.optString("refreshToken", "") }
                         .ifBlank { root.optString("refresh_token", "") }
+                        .ifBlank { root.optString("refreshToken", "") }
                         .takeIf { it.isNotBlank() }
-                    val clientObj = root.optJSONObject("installed") ?: root.optJSONObject("client") ?: root
+                    val clientObj = root.optJSONObject("installed")
+                        ?: root.optJSONObject("web")
+                        ?: root.optJSONObject("client")
+                        ?: root
                     val clientId = clientObj.optString("client_id", "")
+                        .ifBlank { clientObj.optString("clientId", "") }
+                        .ifBlank { tokenObj.optString("client_id", "") }
                         .ifBlank { root.optString("client_id", "") }
                         .takeIf { it.isNotBlank() }
                     val clientSecret = clientObj.optString("client_secret", "")
+                        .ifBlank { clientObj.optString("clientSecret", "") }
+                        .ifBlank { tokenObj.optString("client_secret", "") }
                         .ifBlank { root.optString("client_secret", "") }
                         .takeIf { it.isNotBlank() }
                     val email = root.optString("email", "")

@@ -34,11 +34,11 @@ object L10n {
     val enterOpenCodeKey: String
         get() = if (isKorean) "OpenCode Go API Key / 토큰 (oc_sk_...)" else "OpenCode Go Key / Token (oc_sk_...)"
     val enterGoogleToken: String
-        get() = if (isKorean) "Google OAuth 인증 또는 토큰/JSON" else "Google OAuth Sign-In or Token / JSON"
+        get() = if (isKorean) "인증 토큰 또는 JSON 붙여넣기" else "Paste Auth Token or JSON"
     val googleSignInButton: String
         get() = if (isKorean) "Google 계정으로 인증" else "Sign in with Google"
     val importAuthOrClientJson: String
-        get() = if (isKorean) "인증 / Client JSON" else "Import Auth / Client JSON"
+        get() = if (isKorean) "인증 파일 가져오기" else "Import Auth File"
     val statusBarIndicatorLabel: String
         get() = if (isKorean) "상단바 인디케이터 · 상시 축약 알림" else "Status Bar Indicator & Persistent Shade"
     val save: String get() = if (isKorean) "저장" else "Save"

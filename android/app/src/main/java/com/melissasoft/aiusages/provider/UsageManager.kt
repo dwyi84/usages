@@ -694,7 +694,10 @@ class UsageManager(context: Context) {
                             status = status,
                             summaryLine = line,
                             compactChip = "OC ${pct.toInt()}%",
-                            resetHint = resetStr.takeIf { it != "-" }?.let { "OC $it" } ?: ""
+                            resetHint = resetStr.takeIf { it != "-" }?.let { "OC $it" } ?: "",
+                            providerTitle = L10n.openCodeTitle,
+                            valueText = "${pct.toInt()}%",
+                            detailText = if (resetStr != "-" && resetStr.isNotBlank()) "$label · $resetStr" else label
                         )
                     )
                     tooltips.add("$line ($resetStr)")
@@ -742,15 +745,22 @@ class UsageManager(context: Context) {
                         g.status == GaugeStatus.ERROR -> GaugeStatus.ERROR
                         else -> pctToStatus(pct)
                     }
-                    val line = if (g.status == GaugeStatus.ERROR && !groups.hasAnyKnownQuota) {
+                    val hasErrorOnly = g.status == GaugeStatus.ERROR && !groups.hasAnyKnownQuota
+                    val line = if (hasErrorOnly) {
                         "Google AI: ${g.statusMessage ?: "Auth error"}"
                     } else {
                         "Google AI ($label): ${pct.toInt()}% ${L10n.remaining}"
                     }
-                    val chip = if (g.status == GaugeStatus.ERROR && !groups.hasAnyKnownQuota) {
-                        "Google !"
+                    val chip = if (hasErrorOnly) "AI !" else "AI ${pct.toInt()}%"
+                    val valueText = if (hasErrorOnly) {
+                        if (L10n.isKorean) "오류" else "Error"
                     } else {
-                        "Google ${pct.toInt()}%"
+                        "${pct.toInt()}%"
+                    }
+                    val detailText = when {
+                        hasErrorOnly -> g.statusMessage ?: (if (L10n.isKorean) "인증 확인 필요" else "Check auth")
+                        resetStr != "-" && resetStr.isNotBlank() -> "$label · $resetStr"
+                        else -> label
                     }
                     gaugeItems.add(BatteryGaugeRenderer.GaugeItem(pct, status))
                     widgetEntries.add(
@@ -759,7 +769,10 @@ class UsageManager(context: Context) {
                             status = status,
                             summaryLine = line,
                             compactChip = chip,
-                            resetHint = resetStr.takeIf { it != "-" }?.let { "Google $it" } ?: ""
+                            resetHint = resetStr.takeIf { it != "-" }?.let { "AI $it" } ?: "",
+                            providerTitle = L10n.googleAITitle,
+                            valueText = valueText,
+                            detailText = detailText
                         )
                     )
                     tooltips.add("$line ($resetStr)")
@@ -780,7 +793,10 @@ class UsageManager(context: Context) {
                             percent = pct,
                             status = or.status,
                             summaryLine = line,
-                            compactChip = "OR $formattedBal"
+                            compactChip = "OR $formattedBal",
+                            providerTitle = L10n.openRouterTitle,
+                            valueText = formattedBal,
+                            detailText = if (L10n.isKorean) "남은 크레딧 잔액" else "Remaining credit balance"
                         )
                     )
                     tooltips.add(line)

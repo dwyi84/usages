@@ -13,7 +13,10 @@ data class WidgetGaugeCacheEntry(
     val status: GaugeStatus,
     val summaryLine: String,
     val compactChip: String = "",
-    val resetHint: String = ""
+    val resetHint: String = "",
+    val providerTitle: String = "",
+    val valueText: String = "",
+    val detailText: String = ""
 )
 
 data class WidgetCacheState(
@@ -152,6 +155,9 @@ class AppSettingsRepository(context: Context) {
                         put("summaryLine", e.summaryLine)
                         put("compactChip", e.compactChip)
                         put("resetHint", e.resetHint)
+                        put("providerTitle", e.providerTitle)
+                        put("valueText", e.valueText)
+                        put("detailText", e.detailText)
                     }
                 )
             }
@@ -179,7 +185,10 @@ class AppSettingsRepository(context: Context) {
                             status = status,
                             summaryLine = obj.optString("summaryLine", ""),
                             compactChip = obj.optString("compactChip", ""),
-                            resetHint = obj.optString("resetHint", "")
+                            resetHint = obj.optString("resetHint", ""),
+                            providerTitle = obj.optString("providerTitle", ""),
+                            valueText = obj.optString("valueText", ""),
+                            detailText = obj.optString("detailText", "")
                         )
                     )
                 }

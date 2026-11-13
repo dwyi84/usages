@@ -600,5 +600,95 @@ class UsageCorrectnessTests {
         assertEquals("Reset 2h 10m · Updated 20:30", summary.secondaryLine)
         assertTrue(summary.expandedLines.contains("OpenCode 5h 88%"))
         assertTrue(summary.expandedLines.contains("OpenRouter $12.40"))
+
+        assertEquals(0xFFFF453A.toInt(), BatteryGaugeRenderer.resolveColorArgb(80.0, GaugeStatus.ERROR))
+
+        val emptyShade = UsageNotificationManager.buildShadeModel(null, "No active providers", isKorean = false)
+        assertEquals("No active providers", emptyShade.emptyText)
+        assertTrue(emptyShade.chips.isEmpty())
+        assertTrue(emptyShade.rows.isEmpty())
+
+        val multiCache = WidgetCacheState(
+            entries = listOf(
+                WidgetGaugeCacheEntry(
+                    percent = 88.0,
+                    status = GaugeStatus.NORMAL,
+                    summaryLine = "OpenCode Go (5h): 88% remaining",
+                    compactChip = "OC 88%",
+                    resetHint = "OC Reset in 2h",
+                    providerTitle = "OpenCode Go",
+                    valueText = "88%",
+                    detailText = "5h · Reset in 2h"
+                ),
+                WidgetGaugeCacheEntry(
+                    percent = 30.0,
+                    status = GaugeStatus.WARNING,
+                    summaryLine = "Google AI (5h): 30% remaining",
+                    compactChip = "AI 30%",
+                    resetHint = "AI Reset in 1h",
+                    providerTitle = "Google AI Pro",
+                    valueText = "30%",
+                    detailText = "5h · Reset in 1h"
+                ),
+                WidgetGaugeCacheEntry(
+                    percent = 54.0,
+                    status = GaugeStatus.NORMAL,
+                    summaryLine = "OpenRouter: $5.40",
+                    compactChip = "OR $5.40",
+                    providerTitle = "OpenRouter",
+                    valueText = "$5.40",
+                    detailText = "Remaining credit balance"
+                )
+            ),
+            daysUntilReset = 2,
+            updatedAtText = "20:55"
+        )
+        val shade = UsageNotificationManager.buildShadeModel(multiCache, "None", isKorean = false)
+        assertNull(shade.emptyText)
+        assertEquals(3, shade.chips.size)
+        assertEquals("OC 88%", shade.chips[0].text)
+        assertEquals("AI 30%", shade.chips[1].text)
+        assertEquals("OR $5.40", shade.chips[2].text)
+        assertEquals("3 Active · Low Quota", shade.expandedTitle)
+        assertEquals("20:55", shade.subTextTime)
+        assertEquals(3, shade.rows.size)
+        assertEquals("OpenCode Go", shade.rows[0].name)
+        assertEquals("88%", shade.rows[0].valueText)
+        assertEquals("Google AI Pro", shade.rows[1].name)
+        assertEquals("$5.40", shade.rows[2].valueText)
+    }
+
+    @Test
+    fun googleParsesBomCamelCaseAndReportsMissingClientIdOnExpired401() = runTest {
+        val bomJson = "\uFEFF" + """{"accessToken":"ya29.bom","refreshToken":"1//r_bom","clientId":"cid-bom","email":"a@b.com"}"""
+        val parsed = GoogleAIProvider.parseCredentialInput(bomJson)
+        assertNotNull(parsed)
+        assertEquals("ya29.bom", parsed!!.accessToken)
+        assertEquals("1//r_bom", parsed.refreshToken)
+        assertEquals("cid-bom", parsed.clientId)
+        assertEquals("a@b.com", parsed.email)
+
+        val server = MockWebServer()
+        repeat(3) {
+            server.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"invalid_token"}"""))
+        }
+        server.start()
+        try {
+            val provider = GoogleAIProvider(
+                client = OkHttpClient(),
+                endpoints = listOf(server.url("/v1internal:retrieveUserQuotaSummary").toString()),
+                oauthTokenUrl = server.url("/token").toString()
+            )
+            val snap = provider.fetchUsageSnapshot(
+                rawCredentialInput = null,
+                oauthBundleJson = """{"token":{"access_token":"ya29.stale","refresh_token":"1//no_cid"}}""",
+                billingDayOfMonth = 0
+            )
+            assertEquals(GaugeStatus.ERROR, snap.status)
+            assertTrue(snap.statusMessage.orEmpty().contains("401"))
+            assertTrue(snap.statusMessage.orEmpty().contains("client_id"))
+        } finally {
+            server.shutdown()
+        }
     }
 }

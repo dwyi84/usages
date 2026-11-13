@@ -403,7 +403,7 @@ fun MainScreen(usageManager: UsageManager) {
                                 onSubmitManualOAuthCode = { usageManager.submitGoogleOAuthManualInput(it) },
                                 onCancelOAuth = { usageManager.cancelGoogleOAuthPending() },
                                 onImportAuthOrClientJson = {
-                                    googleAuthFileLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                                    googleAuthFileLauncher.launch(arrayOf("*/*"))
                                 },
                                 onImportStepsDb = { googleDbLauncher.launch(arrayOf("*/*")) },
                                 onOpenTrendDetail = { title, summary -> trendDialogData = title to summary }

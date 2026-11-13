@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="notif_text_primary">#FFF3F6FA</color>
-    <color name="notif_text_secondary">#B3F3F6FA</color>
-    <color name="notif_icon_tint">#FFDCE3EE</color>
+    <color name="notif_text_primary">#FFF8FAFC</color>
+    <color name="notif_text_secondary">#B3E2E8F0</color>
+    <color name="notif_icon_tint">#FFE2E8F0</color>
+    <color name="notif_chip_bg">#14FFFFFF</color>
+    <color name="notif_chip_stroke">#24FFFFFF</color>
+    <color name="notif_card_bg">#0EFFFFFF</color>
+    <color name="notif_card_stroke">#1FFFFFFF</color>
+    <color name="notif_btn_bg">#18FFFFFF</color>
 </resources>
