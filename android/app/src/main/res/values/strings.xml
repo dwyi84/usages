@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">AI Usages</string>
+    <string name="widget_name">AI Usages Gauge</string>
+    <string name="widget_description">Real-time 4-segment quota &amp; balance gauges for AI providers</string>
+    <string name="widget_no_active">No active AI services (tap to configure)</string>
+</resources>

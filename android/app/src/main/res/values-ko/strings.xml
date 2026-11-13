@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">AI Usages</string>
+    <string name="widget_name">AI Usages 게이지</string>
+    <string name="widget_description">AI 프로바이더 실시간 4칸 쿼터·잔액 게이지 위젯</string>
+    <string name="widget_no_active">활성화된 AI 서비스 없음 (탭하여 설정)</string>
+</resources>

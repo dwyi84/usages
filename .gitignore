@@ -3,3 +3,18 @@ dist/
 .swiftpm/
 .DS_Store
 build/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml
+android/.cxx/
+android/captures/
+android/dist/
+android/*.jks
+android/*.keystore
+*.apk
