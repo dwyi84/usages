@@ -300,9 +300,27 @@ export default class AIUsagesPreferences extends ExtensionPreferences {
         if (this._settings.get_boolean('providers-configured'))
             return;
 
-        const detected = this._detectedFromCache();
+        const detected = this._detectedProviders();
         this._settings.set_strv('enabled-providers', detected);
         this._settings.set_boolean('providers-configured', true);
+    }
+
+    _detectedProviders() {
+        const ids = new Set(this._detectedFromCache());
+        const home = GLib.get_home_dir();
+
+        if (GLib.file_test(GLib.build_filenamev([home, '.local', 'share', 'opencode', 'opencode.db']),
+            GLib.FileTest.EXISTS))
+            ids.add('opencode');
+
+        if (GLib.file_test(GLib.build_filenamev([home, '.gemini', 'antigravity-cli']), GLib.FileTest.EXISTS) ||
+            GLib.find_program_in_path('agy'))
+            ids.add('google_ai');
+
+        if (this._readSecret())
+            ids.add('openrouter');
+
+        return PROVIDERS.map(([id]) => id).filter(id => ids.has(id));
     }
 
     _detectedFromCache() {

@@ -93,6 +93,23 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(snapshot["status"], "warning")
         self.assertEqual(snapshot["error"], "internal_error")
 
+    def test_partial_run_keeps_other_provider_snapshots(self):
+        with mock.patch.object(
+            collector.opencode, "fetch_snapshot", lambda **kwargs: _snapshot("opencode")
+        ), mock.patch.object(
+            collector.google, "fetch_snapshot", lambda **kwargs: _snapshot("google_ai")
+        ):
+            collector.collect(enabled=["opencode", "google_ai"])
+
+        with mock.patch.object(
+            collector.google, "fetch_snapshot", lambda **kwargs: _snapshot("google_ai")
+        ):
+            payload = collector.collect(enabled=["google_ai"])
+
+        self.assertEqual(set(payload["providers"]), {"google_ai"})
+        cached = collector.cached_payload()
+        self.assertEqual(set(cached["providers"]), {"opencode", "google_ai"})
+
     def test_state_file_is_private(self):
         state.save_state({"providers": {}, "internal": {}})
         path = os.path.join(self._tmp.name, "state.json")

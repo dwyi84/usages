@@ -122,7 +122,12 @@ def collect(
     }
 
     if write_cache:
-        cached["providers"] = providers
+        # A partial run (e.g. only the providers the user enabled) must not
+        # erase the snapshots of the others; keep them for the next refresh.
+        previous_providers = cached.get("providers")
+        merged = dict(previous_providers) if isinstance(previous_providers, dict) else {}
+        merged.update(providers)
+        cached["providers"] = merged
         cached["internal"] = internal
         try:
             state_mod.save_state(cached)
