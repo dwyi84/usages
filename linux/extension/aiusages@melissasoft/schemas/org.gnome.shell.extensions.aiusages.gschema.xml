@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.aiusages" path="/org/gnome/shell/extensions/aiusages/">
+
+    <key name="refresh-interval" type="u">
+      <default>300</default>
+      <summary>Refresh interval in seconds</summary>
+    </key>
+
+    <key name="providers-configured" type="b">
+      <default>false</default>
+      <summary>Whether the user has explicitly chosen providers</summary>
+    </key>
+
+    <key name="enabled-providers" type="as">
+      <default>[]</default>
+      <summary>Enabled provider ids</summary>
+    </key>
+
+    <key name="provider-order" type="as">
+      <default>['opencode', 'google_ai', 'openrouter']</default>
+      <summary>Order of the top bar gauges</summary>
+    </key>
+
+    <key name="panel-metrics" type="as">
+      <default>[]</default>
+      <summary>Panel metric per provider, formatted as provider=key</summary>
+    </key>
+
+    <key name="google-billing-day" type="u">
+      <default>0</default>
+      <summary>Google renewal day of month (0 hides it)</summary>
+    </key>
+
+    <key name="collector-path" type="s">
+      <default>'aiusages-collect'</default>
+      <summary>Collector executable</summary>
+    </key>
+
+    <key name="show-panel-percent" type="b">
+      <default>false</default>
+      <summary>Show the first gauge value as text</summary>
+    </key>
+
+    <key name="notify-threshold" type="b">
+      <default>true</default>
+      <summary>Notify when remaining quota drops below 15%</summary>
+    </key>
+  </schema>
+</schemalist>

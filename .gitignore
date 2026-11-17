@@ -3,3 +3,8 @@ dist/
 .swiftpm/
 .DS_Store
 build/
+
+# Linux / GNOME extension
+__pycache__/
+*.pyc
+.gschemas.compiled

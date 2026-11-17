@@ -1,0 +1,195 @@
+/* AI Usages — GNOME Shell extension styling */
+
+.aiusages-panel-box {
+    spacing: 4px;
+}
+
+.aiusages-panel-gauge {
+    margin: 0 1px;
+}
+
+.aiusages-panel-percent {
+    font-feature-settings: "tnum";
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.aiusages-menu {
+    min-width: 360px;
+}
+
+.aiusages-menu .popup-menu-content {
+    padding: 4px 0;
+}
+
+.aiusages-menu .aiusages-card,
+.aiusages-menu .aiusages-header,
+.aiusages-menu .aiusages-tabs,
+.aiusages-menu .aiusages-footer,
+.aiusages-menu .aiusages-content-item {
+    padding: 0 10px;
+    margin: 0;
+}
+
+.aiusages-menu .popup-menu-item {
+    spacing: 0;
+}
+
+.aiusages-menu .popup-menu-ornament {
+    width: 0;
+    margin: 0;
+}
+
+.aiusages-card-box {
+    spacing: 4px;
+    padding: 2px 0;
+}
+
+.aiusages-header {
+    padding-top: 6px;
+}
+
+.aiusages-title {
+    font-size: 1.1em;
+    font-weight: 700;
+}
+
+.aiusages-subtitle {
+    font-size: 0.8em;
+    opacity: 0.65;
+}
+
+.aiusages-icon-button {
+    padding: 5px;
+    border-radius: 8px;
+    margin-left: 4px;
+}
+
+.aiusages-icon-button:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.aiusages-tabs {
+    padding-bottom: 2px;
+}
+
+.aiusages-tab-row {
+    spacing: 6px;
+}
+
+.aiusages-tab {
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 0.9em;
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.aiusages-tab:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.aiusages-tab-active {
+    background-color: rgba(255, 255, 255, 0.18);
+    font-weight: 600;
+}
+
+.aiusages-body {
+    spacing: 8px;
+    padding: 0;
+}
+
+.aiusages-provider {
+    spacing: 3px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.aiusages-card-head {
+    spacing: 8px;
+}
+
+.aiusages-card-title {
+    font-weight: 700;
+    font-size: 1em;
+}
+
+.aiusages-card-subtitle {
+    font-size: 0.78em;
+    opacity: 0.65;
+}
+
+.aiusages-card-percent {
+    font-size: 1.25em;
+    font-weight: 700;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-metric {
+    spacing: 2px;
+    padding-top: 3px;
+}
+
+.aiusages-metric-label {
+    font-size: 0.86em;
+    opacity: 0.9;
+}
+
+.aiusages-metric-value {
+    font-size: 0.9em;
+    font-weight: 600;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-metric-reset {
+    font-size: 0.72em;
+    opacity: 0.55;
+}
+
+.aiusages-quota-bar {
+    margin-top: 2px;
+}
+
+.aiusages-note {
+    font-size: 0.76em;
+    opacity: 0.6;
+}
+
+.aiusages-error {
+    font-size: 0.76em;
+    color: #ff7b72;
+}
+
+.aiusages-section-title {
+    font-size: 0.82em;
+    font-weight: 600;
+    margin-top: 6px;
+}
+
+.aiusages-trend {
+    spacing: 2px;
+    margin-top: 4px;
+}
+
+.aiusages-chart {
+    margin-top: 3px;
+}
+
+.aiusages-chart-info {
+    font-size: 0.74em;
+    opacity: 0.75;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-footer {
+    padding-bottom: 6px;
+}
+
+.aiusages-footer-row {
+    spacing: 6px;
+}
+
+.aiusages-empty {
+    padding: 24px 12px;
+    spacing: 8px;
+}

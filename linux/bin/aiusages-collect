@@ -1,0 +1,22 @@
+#!/bin/sh
+# Launcher for the AI Usages collector.
+#
+# Works both in-tree (linux/bin/../collector) and after install.sh copied the
+# package to ~/.local/share/aiusages/collector.
+set -eu
+
+self=$(readlink -f "$0")
+base=$(dirname "$self")
+
+if [ -d "$base/../collector/aiusages" ]; then
+    collector_dir=$(readlink -f "$base/../collector")
+else
+    collector_dir="${AIUSAGES_COLLECTOR_DIR:-$HOME/.local/share/aiusages/collector}"
+fi
+
+if [ ! -d "$collector_dir/aiusages" ]; then
+    echo "aiusages-collect: collector package not found at $collector_dir" >&2
+    exit 127
+fi
+
+PYTHONPATH="$collector_dir${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m aiusages "$@"

@@ -65,6 +65,20 @@ cd usages
 make install
 ```
 
+### Linux (Ubuntu 24.04+ / GNOME 46)
+
+A native GNOME Shell port lives in [`linux/`](linux/README.md). It shows the same
+segmented gauges in the top bar, opens a detailed popup on click, and reuses the
+local OpenCode / Antigravity credentials through GNOME Keyring.
+
+```bash
+make linux-test     # stdlib unittest suite
+make linux-install  # installs the extension and collector for the current user
+```
+
+Reload the shell (`Alt+F2` → `r` on X11, or log out on Wayland) and enable
+**AI Usages** in the Extensions app.
+
 ---
 
 ## Privacy & Security

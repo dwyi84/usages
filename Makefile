@@ -9,7 +9,8 @@ INSTALL_DIR   ?= /Applications
 SWIFT         := swift
 VERSION       := $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
 
-.PHONY: all build bundle zip run install uninstall clean test
+.PHONY: all build bundle zip run install uninstall clean test \
+	linux-test linux-collect linux-install linux-pack linux-uninstall
 
 all: bundle
 
@@ -55,3 +56,19 @@ uninstall:
 clean:
 	rm -rf "$(BUILD_DIR)" "$(DIST)" .build
 	$(SWIFT) package clean
+
+## Linux / Ubuntu (GNOME Shell extension) targets. They never touch the Swift build.
+linux-test:
+	$(MAKE) -C linux test
+
+linux-collect:
+	$(MAKE) -C linux collect
+
+linux-install:
+	$(MAKE) -C linux install
+
+linux-pack:
+	$(MAKE) -C linux pack
+
+linux-uninstall:
+	$(MAKE) -C linux uninstall

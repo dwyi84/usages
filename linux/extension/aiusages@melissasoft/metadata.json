@@ -1,0 +1,9 @@
+{
+  "uuid": "aiusages@melissasoft",
+  "name": "AI Usages",
+  "description": "Monitor OpenCode Go, Google AI Pro and OpenRouter quotas from the top bar.",
+  "shell-version": ["46"],
+  "settings-schema": "org.gnome.shell.extensions.aiusages",
+  "url": "https://github.com/dwyi84/usages",
+  "version": 1
+}
