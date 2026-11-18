@@ -32,13 +32,13 @@ from .httpclient import request_json
 
 log = logging.getLogger(__name__)
 
-_CLIENT_ID_RE = re.compile(rb"[0-9]{10,}-[a-z0-9]{20,}\.apps\.googleusercontent\.com")
-_CLIENT_SECRET_RE = re.compile(rb"GOCSPX-[A-Za-z0-9_-]{20,}")
+_CLIENT_ID_RE = re.compile(rb"[0-9]{12,13}-[a-z0-9]{32}\.apps\.googleusercontent\.com")
+_CLIENT_SECRET_RE = re.compile(rb"GOCSPX-[A-Za-z0-9_-]{28}")
 _CACHED_OAUTH_CLIENT: Optional[tuple[str, str]] = None
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 REST_ENDPOINTS = (
-    "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
     "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+    "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
 )
 PROJECTS = ("aicode-consumers", "default-cli-project", "")
 
@@ -196,49 +196,41 @@ def _token_id(refresh_token: str) -> str:
     return hashlib.sha256(refresh_token.encode("utf-8")).hexdigest()[:16]
 
 
-def _oauth_client(
+def _oauth_client_candidates(
     credentials: dict[str, Any],
     token_cache: Optional[dict[str, Any]] = None,
-) -> tuple[str, str]:
-    global _CACHED_OAUTH_CLIENT
+) -> list[tuple[str, str]]:
+    candidates: list[tuple[str, str]] = []
 
-    cred_id = str(credentials.get("client_id") or "").strip()
-    cred_secret = str(credentials.get("client_secret") or "").strip()
-    if cred_id and cred_secret:
-        return cred_id, cred_secret
+    def add(cid: Any, csec: Any) -> None:
+        if isinstance(cid, str) and isinstance(csec, str) and cid and csec:
+            pair = (cid.strip(), csec.strip())
+            if pair[0] and pair[1] and pair not in candidates:
+                candidates.append(pair)
 
-    env_id = (os.environ.get("AIUSAGES_GOOGLE_CLIENT_ID") or "").strip()
-    env_secret = (os.environ.get("AIUSAGES_GOOGLE_CLIENT_SECRET") or "").strip()
-    if env_id and env_secret:
-        return env_id, env_secret
-
-    if isinstance(token_cache, dict):
-        cached_id = token_cache.get("client_id")
-        cached_sec = token_cache.get("client_secret")
-        if isinstance(cached_id, str) and cached_id and isinstance(cached_sec, str) and cached_sec:
-            return cached_id, cached_sec
+    add(credentials.get("client_id"), credentials.get("client_secret"))
+    add(os.environ.get("AIUSAGES_GOOGLE_CLIENT_ID"), os.environ.get("AIUSAGES_GOOGLE_CLIENT_SECRET"))
 
     if _CACHED_OAUTH_CLIENT is not None:
-        return _CACHED_OAUTH_CLIENT
+        add(_CACHED_OAUTH_CLIENT[0], _CACHED_OAUTH_CLIENT[1])
+
+    if isinstance(token_cache, dict):
+        add(token_cache.get("client_id"), token_cache.get("client_secret"))
 
     binary = find_agy()
     if binary:
         try:
             data = Path(binary).resolve().read_bytes()
-            m_id = _CLIENT_ID_RE.search(data)
-            m_sec = _CLIENT_SECRET_RE.search(data)
-            if m_id and m_sec:
-                cid = m_id.group(0).decode("ascii")
-                csec = m_sec.group(0).decode("ascii")
-                _CACHED_OAUTH_CLIENT = (cid, csec)
-                if isinstance(token_cache, dict):
-                    token_cache["client_id"] = cid
-                    token_cache["client_secret"] = csec
-                return cid, csec
+            ids = [m.decode("ascii") for m in _CLIENT_ID_RE.findall(data)]
+            secs = [m.decode("ascii") for m in _CLIENT_SECRET_RE.findall(data)]
+            agy_pairs = list(zip(ids, secs))
+            agy_pairs.sort(key=lambda pair: 0 if pair[0].startswith("1071") else 1)
+            for cid, csec in agy_pairs:
+                add(cid, csec)
         except OSError as exc:
             log.debug("failed reading agy binary for OAuth client: %s", exc)
 
-    return "", ""
+    return candidates or [("", "")]
 
 
 def refresh_access_token(
@@ -248,6 +240,8 @@ def refresh_access_token(
     now: Optional[dt.datetime] = None,
     force: bool = False,
 ) -> Optional[str]:
+    global _CACHED_OAUTH_CLIENT
+
     current = now or util.now_utc()
     refresh_token = credentials.get("refresh_token")
     if not isinstance(refresh_token, str) or not refresh_token:
@@ -267,29 +261,44 @@ def refresh_access_token(
         except (TypeError, ValueError):
             pass
 
-    client_id, client_secret = _oauth_client(credentials, token_cache)
-    result = request_json(
-        TOKEN_URL,
-        method="POST",
-        payload={
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token",
-        },
-        headers={"Content-Type": "application/json"},
-        timeout=10.0,
-    )
-    data = result.data if isinstance(result.data, dict) else None
-    access = data.get("access_token") if data else None
+    access: Optional[str] = None
+    data: Optional[dict[str, Any]] = None
+    used_client: Optional[tuple[str, str]] = None
+    last_error: Any = None
+
+    for client_id, client_secret in _oauth_client_candidates(credentials, token_cache):
+        result = request_json(
+            TOKEN_URL,
+            method="POST",
+            payload={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            },
+            headers={"Content-Type": "application/json"},
+            timeout=10.0,
+        )
+        candidate_data = result.data if isinstance(result.data, dict) else None
+        candidate_access = candidate_data.get("access_token") if candidate_data else None
+        if isinstance(candidate_access, str) and candidate_access:
+            access = candidate_access
+            data = candidate_data
+            if client_id and client_secret:
+                used_client = (client_id, client_secret)
+            break
+        last_error = result.error or result.status
+
     if not isinstance(access, str) or not access:
-        log.debug("token refresh failed: %s", result.error or result.status)
+        log.debug("token refresh failed: %s", last_error)
         return None
 
     try:
-        expires_in = float(data.get("expires_in") or 3600)
+        expires_in = float((data or {}).get("expires_in") or 3600)
     except (TypeError, ValueError):
         expires_in = 3600.0
+    if used_client is not None:
+        _CACHED_OAUTH_CLIENT = used_client
     if token_cache is not None:
         token_cache.update(
             {
@@ -299,6 +308,9 @@ def refresh_access_token(
                 "updated_at": current.timestamp(),
             }
         )
+        if used_client is not None:
+            token_cache["client_id"] = used_client[0]
+            token_cache["client_secret"] = used_client[1]
     return access
 
 

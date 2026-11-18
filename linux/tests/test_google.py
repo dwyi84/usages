@@ -83,6 +83,9 @@ AGY_PAYLOAD = {
 
 
 class RestParsingTests(unittest.TestCase):
+    def test_daily_endpoint_is_first(self):
+        self.assertTrue(google.REST_ENDPOINTS[0].startswith("https://daily-cloudcode-pa.googleapis.com"))
+
     def test_parses_groups(self):
         limits = google.parse_rest_quota(REST_PAYLOAD)
         self.assertAlmostEqual(limits["gemini_weekly"]["percent"], 84.0)

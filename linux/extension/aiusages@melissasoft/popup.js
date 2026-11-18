@@ -19,7 +19,7 @@ import {
 import {disposeContext} from './panel.js';
 import {errorLabel, t} from './i18n.js';
 
-const APP_VERSION = '0.2.8';
+const APP_VERSION = '0.2.9';
 const POPUP_WIDTH = 440;
 const BUY_ME_A_COFFEE_URL = 'https://buymeacoffee.com/dwyi84d';
 

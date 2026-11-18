@@ -196,8 +196,8 @@ public final class GoogleAIProvider: @unchecked Sendable {
         guard let token = readAccessTokenFromKeychain() else { return nil }
         
         let endpoints = [
-            "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
-            "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
+            "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+            "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
         ]
         
         let projects = ["aicode-consumers", "default-cli-project", ""]

@@ -5,6 +5,6 @@
   "shell-version": ["46"],
   "settings-schema": "org.gnome.shell.extensions.aiusages",
   "url": "https://github.com/dwyi84/usages",
-  "version-name": "0.2.8",
+  "version-name": "0.2.9",
   "version": 1
 }
