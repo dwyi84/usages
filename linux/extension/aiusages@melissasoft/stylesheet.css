@@ -29,6 +29,8 @@
 
 .aiusages-menu {
     width: 440px;
+    min-width: 440px;
+    max-width: 440px;
 }
 
 .aiusages-menu-dark .aiusages-header-icon,
@@ -234,6 +236,8 @@
 
 .aiusages-scroll {
     max-height: 480px;
+    -st-vfade-offset: 0px;
+    -st-hfade-offset: 0px;
 }
 
 .aiusages-body {
@@ -259,9 +263,9 @@
 
 .aiusages-provider-card {
     spacing: 6px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background-color: rgba(127, 127, 127, 0.10);
+    padding: 4px 2px;
+    border-radius: 0;
+    background-color: transparent;
 }
 
 .aiusages-card-head {
@@ -667,7 +671,11 @@
 }
 
 .aiusages-metric-cards {
-    spacing: 6px;
+    spacing: 5px;
+}
+
+.aiusages-metric-cards-row {
+    spacing: 5px;
 }
 
 .aiusages-summary-card {
@@ -703,7 +711,7 @@
 }
 
 .aiusages-inspect-date {
-    width: 126px;
+    width: 112px;
     spacing: 5px;
 }
 

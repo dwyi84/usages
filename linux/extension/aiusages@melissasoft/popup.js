@@ -19,7 +19,7 @@ import {
 import {disposeContext} from './panel.js';
 import {errorLabel, t} from './i18n.js';
 
-const APP_VERSION = '0.2.9';
+const APP_VERSION = '0.2.10';
 const POPUP_WIDTH = 440;
 const BUY_ME_A_COFFEE_URL = 'https://buymeacoffee.com/dwyi84d';
 
@@ -208,7 +208,7 @@ class TrendArea extends St.DrawingArea {
         this._hover = null;
         this._onHover = onHover;
 
-        this.set_size(340, 96);
+        this.set_height(96);
         this.connect('repaint', () => this._repaint());
         this.connect('motion-event', (_actor, event) => {
             this._updateHover(event);
@@ -238,8 +238,8 @@ class TrendArea extends St.DrawingArea {
     _repaint() {
         const cr = this.get_context();
         try {
-            const width = this.get_width() || 340;
-            const height = this.get_height() || 96;
+            const width = Math.max(1, this.get_width());
+            const height = Math.max(1, this.get_height());
             drawTrend(this, cr, this._points, width, height, this._hover);
         } finally {
             disposeContext(cr);
@@ -253,7 +253,7 @@ class TrendArea extends St.DrawingArea {
 
         const [x] = event.get_coords();
         const [originX] = this.get_transformed_position();
-        const width = this.get_width() || 340;
+        const width = Math.max(1, this.get_width());
         const gap = 2;
         const barWidth = Math.max(2, (width - gap * (points.length - 1)) / points.length);
         const index = Math.floor((x - originX) / (barWidth + gap));
@@ -360,12 +360,18 @@ export class PopupView {
         this._menu.addMenuItem(this._buildHeaderSection(isDark));
 
         const scrollSection = new PopupMenu.PopupMenuSection();
+        scrollSection.actor.clip_to_allocation = true;
         const scroll = new St.ScrollView({
             style_class: 'aiusages-scroll',
+            style: '-st-vfade-offset: 0px; -st-hfade-offset: 0px;',
             hscrollbar_policy: St.PolicyType.NEVER,
-            vscrollbar_policy: St.PolicyType.AUTOMATIC,
-            overlay_scrollbars: true,
+            vscrollbar_policy: St.PolicyType.EXTERNAL,
+            overlay_scrollbars: false,
+            enable_mouse_scrolling: true,
+            clip_to_allocation: true,
         });
+        scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.EXTERNAL);
+        scroll.remove_effect_by_name?.('fade');
         const listSection = new PopupMenu.PopupMenuSection();
         listSection.actor.add_style_class_name('aiusages-body');
         scroll.add_child(listSection.actor);
@@ -764,8 +770,11 @@ export class PopupView {
             empty.add_child(hint);
             body.add_child(empty);
         } else {
-            for (const id of activeOrder)
+            activeOrder.forEach((id, idx) => {
+                if (idx > 0)
+                    body.add_child(softDivider('aiusages-section-divider'));
                 body.add_child(this._providerCard(id, activeOrder, isDark));
+            });
         }
 
         body.add_child(softDivider('aiusages-section-divider'));
@@ -1578,15 +1587,19 @@ export class PopupView {
 
         const head = new St.BoxLayout({x_expand: true, y_align: Clutter.ActorAlign.CENTER, style_class: 'aiusages-drawer-head'});
         head.add_child(createHeaderIcon(13, isDark));
-        head.add_child(new St.Label({
+        const drawerTitle = new St.Label({
             text: `${title} ${t('상세 사용 트렌드', 'Detailed Usage Trend')}`,
             style_class: 'aiusages-drawer-title',
-        }));
-        head.add_child(new St.Label({
+        });
+        drawerTitle.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        head.add_child(drawerTitle);
+        const drawerSub = new St.Label({
             text: t('(최근 30일)', '(Last 30 Days)'),
             style_class: 'aiusages-drawer-subtitle',
             x_expand: true,
-        }));
+        });
+        drawerSub.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        head.add_child(drawerSub);
         const closeBtn = new St.Button({
             style_class: 'aiusages-editor-close-btn',
             can_focus: true,
@@ -1599,16 +1612,21 @@ export class PopupView {
         head.add_child(closeBtn);
         drawer.add_child(head);
 
-        const cards = new St.BoxLayout({x_expand: true, style_class: 'aiusages-metric-cards'});
-        cards.layout_manager.homogeneous = true;
+        const cards = new St.BoxLayout({vertical: true, x_expand: true, style_class: 'aiusages-metric-cards'});
         const totalTokCard = this._summaryMetricCardWithLabel(unitTitle, '', 'aiusages-summary-val');
         const totalCostCard = this._summaryMetricCardWithLabel(t('총 환산비용', 'Total Cost'), '', 'aiusages-summary-val-green');
         const avgCard = this._summaryMetricCardWithLabel(t('일평균 사용', 'Daily Avg'), '', 'aiusages-summary-val-accent');
         const peakCard = this._summaryMetricCardWithLabel(t('최대 사용일', 'Peak Day'), '', 'aiusages-summary-val');
-        cards.add_child(totalTokCard.card);
-        cards.add_child(totalCostCard.card);
-        cards.add_child(avgCard.card);
-        cards.add_child(peakCard.card);
+        const cardsRow1 = new St.BoxLayout({x_expand: true, style_class: 'aiusages-metric-cards-row'});
+        cardsRow1.layout_manager.homogeneous = true;
+        cardsRow1.add_child(totalTokCard.card);
+        cardsRow1.add_child(totalCostCard.card);
+        const cardsRow2 = new St.BoxLayout({x_expand: true, style_class: 'aiusages-metric-cards-row'});
+        cardsRow2.layout_manager.homogeneous = true;
+        cardsRow2.add_child(avgCard.card);
+        cardsRow2.add_child(peakCard.card);
+        cards.add_child(cardsRow1);
+        cards.add_child(cardsRow2);
         drawer.add_child(cards);
 
         const banner = new St.BoxLayout({
@@ -1626,6 +1644,7 @@ export class PopupView {
         const inspectRow = new St.BoxLayout({x_expand: true, y_align: Clutter.ActorAlign.CENTER, visible: false});
         const dot = new St.Widget({style_class: 'aiusages-inspect-dot'});
         const dateLbl = new St.Label({text: '', style_class: 'aiusages-inspect-date-lbl'});
+        dateLbl.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         const dateBox = new St.BoxLayout({style_class: 'aiusages-inspect-date', y_align: Clutter.ActorAlign.CENTER});
         dateBox.add_child(dot);
         dateBox.add_child(dateLbl);
@@ -1641,7 +1660,7 @@ export class PopupView {
             y_align: Clutter.ActorAlign.CENTER,
         });
         const tokBin = new St.Bin({y_align: Clutter.ActorAlign.CENTER});
-        tokBin.set_width(48);
+        tokBin.set_width(44);
         tokBin.set_child(tokValueLbl);
         const tokBox = new St.BoxLayout({style_class: 'aiusages-inspect-tok', y_align: Clutter.ActorAlign.CENTER});
         tokBox.add_child(tokBin);
@@ -1657,7 +1676,7 @@ export class PopupView {
             y_align: Clutter.ActorAlign.CENTER,
         });
         const costBin = new St.Bin({y_align: Clutter.ActorAlign.CENTER, visible: costAvailable});
-        costBin.set_width(50);
+        costBin.set_width(46);
         costBin.set_child(costLbl);
         inspectRow.add_child(costSep);
         inspectRow.add_child(costBin);
@@ -1754,7 +1773,9 @@ export class PopupView {
 
     _summaryMetricCardWithLabel(title, value, valueClass) {
         const card = new St.BoxLayout({vertical: true, style_class: 'aiusages-summary-card', x_expand: true});
-        card.add_child(new St.Label({text: title, style_class: 'aiusages-summary-title'}));
+        const titleLbl = new St.Label({text: title, style_class: 'aiusages-summary-title'});
+        titleLbl.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        card.add_child(titleLbl);
         const val = new St.Label({text: value, style_class: valueClass});
         val.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         card.add_child(val);
