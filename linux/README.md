@@ -37,6 +37,20 @@ are part of a stock Ubuntu install.
 
 ## Install
 
+### One-liner (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dwyi84/usages/main/linux/remote-install.sh | sh
+```
+
+To uninstall:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dwyi84/usages/main/linux/remote-install.sh | sh -s -- --uninstall
+```
+
+### From a local clone
+
 ```bash
 make install            # from this directory
 ```

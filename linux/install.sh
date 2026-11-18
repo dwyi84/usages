@@ -30,6 +30,9 @@ echo "==> Installing extension to $EXT_DIR"
 rm -rf "$EXT_DIR"
 mkdir -p "$EXT_DIR"
 cp -r "$SRC/extension/$UUID/." "$EXT_DIR/"
+if [ -f "$SRC/remote-install.sh" ]; then
+    install -m 0755 "$SRC/remote-install.sh" "$EXT_DIR/remote-install.sh"
+fi
 glib-compile-schemas "$EXT_DIR/schemas"
 
 echo "==> Enabling $UUID"

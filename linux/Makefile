@@ -28,6 +28,10 @@ pack: schemas
 	mkdir -p $(DIST)
 	gnome-extensions pack $(EXT_DIR) \
 		--schema=schemas/org.gnome.shell.extensions.aiusages.gschema.xml \
+		--extra-source=drawing.js \
+		--extra-source=i18n.js \
+		--extra-source=panel.js \
+		--extra-source=popup.js \
 		-f -o $(DIST)
 
 ## Install for the current user (~/.local/share + ~/.local/bin).

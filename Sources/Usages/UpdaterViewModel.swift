@@ -49,7 +49,7 @@ public final class UpdaterViewModel: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             if let release = await Self.fetchLatestRelease() {
-                if Self.isNewer(release.version) {
+                if Self.isNewer(release.version), release.assetURL != nil {
                     self.pendingUpdate = release
                     self.updateState = .updateAvailable
                 } else {
@@ -69,7 +69,7 @@ public final class UpdaterViewModel: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             if let release = await Self.fetchLatestRelease() {
-                if Self.isNewer(release.version) {
+                if Self.isNewer(release.version), release.assetURL != nil {
                     self.pendingUpdate = release
                     self.updateState = .updateAvailable
                     self.presentUpdateConfirmation()

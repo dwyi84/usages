@@ -68,8 +68,16 @@ make install
 ### Linux (Ubuntu 24.04+ / GNOME 46)
 
 A native GNOME Shell port lives in [`linux/`](linux/README.md). It shows the same
-segmented gauges in the top bar, opens a detailed popup on click, and reuses the
-local OpenCode / Antigravity credentials through GNOME Keyring.
+segmented gauges in the top bar, adapts automatically to system Light/Dark themes,
+and reuses local OpenCode / Antigravity credentials through GNOME Keyring.
+
+#### One-liner install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dwyi84/usages/main/linux/remote-install.sh | sh
+```
+
+#### Build from source
 
 ```bash
 make linux-test     # stdlib unittest suite

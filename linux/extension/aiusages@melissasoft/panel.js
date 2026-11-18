@@ -58,7 +58,9 @@ class UsageIndicator extends PanelMenu.Button {
     update() {
         const extension = this._extension;
         const settings = extension.settings;
-        const order = settings.get_strv('provider-order');
+        const order = extension.providerOrder
+            ? extension.providerOrder()
+            : settings.get_strv('provider-order');
         const state = extension.state;
 
         const items = [];
@@ -82,12 +84,20 @@ class UsageIndicator extends PanelMenu.Button {
             if (id === 'openrouter') {
                 percent = Number(snapshot.primary_percent) || 0;
                 status = snapshot.status;
-                label = t('잔액', 'Balance');
                 const row = (snapshot.rows || []).find(entry => entry.key === 'balance');
                 if (row?.value)
                     extra = ` ${row.value}`;
+                items.push({percent, status});
+                tooltips.push(`· ${snapshot.name}:${extra || ` ${Math.round(percent)}%`}`);
+                continue;
+            }
+
+            const key = extension.panelMetricFor(id);
+            if (id === 'google_ai' && key === 'google_monthly') {
+                percent = Number(snapshot.primary_percent) || 0;
+                label = t('월간', 'Monthly');
+                reset = snapshot.billing?.date_string || '-';
             } else {
-                const key = extension.panelMetricFor(id);
                 percent = Number(snapshot.metrics?.[key] ?? snapshot.primary_percent) || 0;
                 const rows = snapshot.rows || [];
                 const row = rows.find(entry => entry.key === key) ?? rows[0];
@@ -95,17 +105,17 @@ class UsageIndicator extends PanelMenu.Button {
                     label = row.label ?? '';
                     reset = row.reset ?? '';
                 }
-                status = snapshot.status === 'rate_limited'
-                    ? 'rate_limited'
-                    : percent <= 15 ? 'critical' : percent <= 35 ? 'warning' : 'normal';
+            }
+            status = snapshot.status === 'rate_limited'
+                ? 'rate_limited'
+                : percent <= 15 ? 'critical' : percent <= 35 ? 'warning' : 'normal';
 
-                const days = snapshot.billing?.days;
-                if (Number.isFinite(days)) {
-                    if (id === 'opencode')
-                        nearestBilling = Math.min(nearestBilling, days);
-                    else if (id === 'google_ai' && settings.get_uint('google-billing-day') > 0)
-                        nearestBilling = Math.min(nearestBilling, days);
-                }
+            const days = snapshot.billing?.days;
+            if (Number.isFinite(days)) {
+                if (id === 'opencode')
+                    nearestBilling = Math.min(nearestBilling, days);
+                else if (id === 'google_ai' && settings.get_uint('google-billing-day') > 0)
+                    nearestBilling = Math.min(nearestBilling, days);
             }
 
             items.push({percent, status});

@@ -1,4 +1,13 @@
-/* AI Usages — GNOME Shell extension styling */
+/* AI Usages — GNOME Shell 46 styling (CopyNinja-style native theme & flat surfaces)
+ *
+ * Background and text colors follow the active GNOME Shell theme with neutral
+ * gray fills and inherited foreground opacity, avoiding borders, box-shadows,
+ * and compositor repaint artifacts inside St.ScrollView.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Top Bar Indicator                                                  */
+/* ------------------------------------------------------------------ */
 
 .aiusages-panel-box {
     spacing: 4px;
@@ -14,182 +23,933 @@
     font-weight: 600;
 }
 
+/* ------------------------------------------------------------------ */
+/* Popup Container & Semantic Theme Accents                           */
+/* ------------------------------------------------------------------ */
+
 .aiusages-menu {
-    min-width: 360px;
+    width: 440px;
 }
 
-.aiusages-menu .popup-menu-content {
-    padding: 4px 0;
+.aiusages-menu-dark .aiusages-header-icon,
+.aiusages-menu-dark .aiusages-select-dot-active,
+.aiusages-menu-dark .aiusages-pill-accent-btn,
+.aiusages-menu-dark .aiusages-balance-big,
+.aiusages-menu-dark .aiusages-accent-badge,
+.aiusages-menu-dark .aiusages-accent-text,
+.aiusages-menu-dark .aiusages-accent-icon,
+.aiusages-menu-dark .aiusages-trend-expand-icon,
+.aiusages-menu-dark .aiusages-summary-val-accent,
+.aiusages-menu-dark .aiusages-inspect-tok-val,
+.aiusages-menu-dark .aiusages-collapse-label,
+.aiusages-menu-dark .aiusages-checkbox-icon-active {
+    color: #4da3ff;
 }
 
-.aiusages-menu .aiusages-card,
-.aiusages-menu .aiusages-header,
-.aiusages-menu .aiusages-tabs,
-.aiusages-menu .aiusages-footer,
-.aiusages-menu .aiusages-content-item {
-    padding: 0 10px;
-    margin: 0;
+.aiusages-menu-light .aiusages-header-icon,
+.aiusages-menu-light .aiusages-select-dot-active,
+.aiusages-menu-light .aiusages-pill-accent-btn,
+.aiusages-menu-light .aiusages-balance-big,
+.aiusages-menu-light .aiusages-accent-badge,
+.aiusages-menu-light .aiusages-accent-text,
+.aiusages-menu-light .aiusages-accent-icon,
+.aiusages-menu-light .aiusages-trend-expand-icon,
+.aiusages-menu-light .aiusages-summary-val-accent,
+.aiusages-menu-light .aiusages-inspect-tok-val,
+.aiusages-menu-light .aiusages-collapse-label,
+.aiusages-menu-light .aiusages-checkbox-icon-active {
+    color: #0969da;
 }
 
-.aiusages-menu .popup-menu-item {
-    spacing: 0;
+.aiusages-menu-dark .aiusages-green-badge,
+.aiusages-menu-dark .aiusages-summary-val-green,
+.aiusages-menu-dark .aiusages-inspect-cost-val {
+    color: #30d158;
 }
 
-.aiusages-menu .popup-menu-ornament {
-    width: 0;
-    margin: 0;
+.aiusages-menu-light .aiusages-green-badge,
+.aiusages-menu-light .aiusages-summary-val-green,
+.aiusages-menu-light .aiusages-inspect-cost-val {
+    color: #1a9e3f;
 }
 
-.aiusages-card-box {
-    spacing: 4px;
-    padding: 2px 0;
+.aiusages-menu-dark .aiusages-error-text,
+.aiusages-menu-dark .aiusages-error,
+.aiusages-menu-dark .aiusages-error-inline {
+    color: #ff7b72;
 }
+
+.aiusages-menu-light .aiusages-error-text,
+.aiusages-menu-light .aiusages-error,
+.aiusages-menu-light .aiusages-error-inline {
+    color: #cf222e;
+}
+
+/* ------------------------------------------------------------------ */
+/* Soft Dividers                                                      */
+/* ------------------------------------------------------------------ */
+
+.aiusages-soft-divider {
+    height: 1px;
+    background-color: rgba(127, 127, 127, 0.18);
+}
+
+.aiusages-header-divider {
+    margin-top: 8px;
+}
+
+.aiusages-footer-divider {
+    margin-bottom: 8px;
+}
+
+.aiusages-section-divider {
+    margin: 2px 0;
+}
+
+.aiusages-tile-divider {
+    margin: 4px 0 2px 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Header                                                             */
+/* ------------------------------------------------------------------ */
 
 .aiusages-header {
-    padding-top: 6px;
+    padding: 8px 12px 0 12px;
+}
+
+.aiusages-header-brand {
+    spacing: 8px;
+}
+
+.aiusages-header-titles {
+    spacing: 1px;
 }
 
 .aiusages-title {
-    font-size: 1.1em;
-    font-weight: 700;
+    font-size: 14px;
+    font-weight: bold;
 }
 
 .aiusages-subtitle {
-    font-size: 0.8em;
-    opacity: 0.65;
+    font-size: 10px;
+    opacity: 0.62;
+    font-feature-settings: "tnum";
 }
 
 .aiusages-icon-button {
-    padding: 5px;
-    border-radius: 8px;
-    margin-left: 4px;
+    padding: 4px;
+    border-radius: 6px;
+    margin-right: 6px;
+    background-color: transparent;
 }
 
 .aiusages-icon-button:hover {
-    background-color: rgba(255, 255, 255, 0.12);
+    background-color: rgba(127, 127, 127, 0.18);
 }
 
-.aiusages-tabs {
-    padding-bottom: 2px;
+.aiusages-icon-button:insensitive {
+    opacity: 0.4;
 }
 
-.aiusages-tab-row {
-    spacing: 6px;
+.aiusages-segmented {
+    background-color: rgba(127, 127, 127, 0.14);
+    border-radius: 7px;
+    padding: 2px;
+    spacing: 2px;
+    margin-right: 6px;
 }
 
-.aiusages-tab {
-    border-radius: 8px;
-    padding: 5px 10px;
-    font-size: 0.9em;
-    background-color: rgba(255, 255, 255, 0.06);
+.aiusages-seg-btn {
+    padding: 3px 7px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.72;
 }
 
-.aiusages-tab:hover {
-    background-color: rgba(255, 255, 255, 0.12);
+.aiusages-seg-btn:hover {
+    background-color: rgba(127, 127, 127, 0.14);
+    opacity: 1;
 }
 
-.aiusages-tab-active {
-    background-color: rgba(255, 255, 255, 0.18);
+.aiusages-seg-btn-active {
+    background-color: rgba(127, 127, 127, 0.28);
+    font-weight: bold;
+    opacity: 1;
+}
+
+.aiusages-header-btn {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 10px;
     font-weight: 600;
+    background-color: rgba(127, 127, 127, 0.16);
+}
+
+.aiusages-header-btn:hover {
+    background-color: rgba(127, 127, 127, 0.24);
+}
+
+.aiusages-header-update-idle:insensitive {
+    opacity: 0.60;
+}
+
+.aiusages-header-update-btn {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: bold;
+    color: #ffffff;
+    background-color: #3584e4;
+}
+
+.aiusages-header-update-btn:hover {
+    background-color: #1c71d8;
+}
+
+.aiusages-settings-icon-btn {
+    margin-right: 0;
+    margin-left: 4px;
+}
+
+.aiusages-update-dialog {
+    width: 340px;
+    spacing: 8px;
+}
+
+.aiusages-update-dialog-title {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.aiusages-update-dialog-body {
+    font-size: 11px;
+    opacity: 0.78;
+}
+
+/* ------------------------------------------------------------------ */
+/* Scrollable Body & Flat Provider Cards                              */
+/* ------------------------------------------------------------------ */
+
+.aiusages-scroll {
+    max-height: 480px;
 }
 
 .aiusages-body {
     spacing: 8px;
-    padding: 0;
-}
-
-.aiusages-provider {
-    spacing: 3px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-.aiusages-card-head {
-    spacing: 8px;
-}
-
-.aiusages-card-title {
-    font-weight: 700;
-    font-size: 1em;
-}
-
-.aiusages-card-subtitle {
-    font-size: 0.78em;
-    opacity: 0.65;
-}
-
-.aiusages-card-percent {
-    font-size: 1.25em;
-    font-weight: 700;
-    font-feature-settings: "tnum";
-}
-
-.aiusages-metric {
-    spacing: 2px;
-    padding-top: 3px;
-}
-
-.aiusages-metric-label {
-    font-size: 0.86em;
-    opacity: 0.9;
-}
-
-.aiusages-metric-value {
-    font-size: 0.9em;
-    font-weight: 600;
-    font-feature-settings: "tnum";
-}
-
-.aiusages-metric-reset {
-    font-size: 0.72em;
-    opacity: 0.55;
-}
-
-.aiusages-quota-bar {
-    margin-top: 2px;
-}
-
-.aiusages-note {
-    font-size: 0.76em;
-    opacity: 0.6;
-}
-
-.aiusages-error {
-    font-size: 0.76em;
-    color: #ff7b72;
-}
-
-.aiusages-section-title {
-    font-size: 0.82em;
-    font-weight: 600;
-    margin-top: 6px;
-}
-
-.aiusages-trend {
-    spacing: 2px;
-    margin-top: 4px;
-}
-
-.aiusages-chart {
-    margin-top: 3px;
-}
-
-.aiusages-chart-info {
-    font-size: 0.74em;
-    opacity: 0.75;
-    font-feature-settings: "tnum";
-}
-
-.aiusages-footer {
-    padding-bottom: 6px;
-}
-
-.aiusages-footer-row {
-    spacing: 6px;
+    padding: 8px 12px;
 }
 
 .aiusages-empty {
-    padding: 24px 12px;
+    padding: 22px 12px;
+    spacing: 4px;
+}
+
+.aiusages-empty-title {
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.75;
+}
+
+.aiusages-empty-subtitle {
+    font-size: 10px;
+    opacity: 0.55;
+}
+
+.aiusages-provider-card {
+    spacing: 6px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background-color: rgba(127, 127, 127, 0.10);
+}
+
+.aiusages-card-head {
+    spacing: 6px;
+}
+
+.aiusages-reorder-box {
+    spacing: 1px;
+}
+
+.aiusages-reorder-btn {
+    padding: 2px;
+    border-radius: 4px;
+    opacity: 0.75;
+}
+
+.aiusages-reorder-btn:hover {
+    background-color: rgba(127, 127, 127, 0.18);
+    opacity: 1;
+}
+
+.aiusages-reorder-disabled {
+    opacity: 0.25;
+}
+
+.aiusages-brand-icon {
+    margin: 0 1px;
+}
+
+.aiusages-card-title {
+    font-size: 12.5px;
+    font-weight: bold;
+}
+
+.aiusages-card-meta {
+    font-size: 10px;
+    font-weight: 600;
+    opacity: 0.62;
+}
+
+/* ------------------------------------------------------------------ */
+/* Quota Progress Bars & Selection Pills                              */
+/* ------------------------------------------------------------------ */
+
+.aiusages-sub-header {
+    font-size: 9.5px;
+    font-weight: bold;
+    opacity: 0.60;
+    padding: 2px 2px 0 2px;
+}
+
+.aiusages-quota-btn {
+    padding: 4px 6px;
+    border-radius: 6px;
+    background-color: transparent;
+}
+
+.aiusages-quota-btn:hover {
+    background-color: rgba(127, 127, 127, 0.12);
+}
+
+.aiusages-quota-btn-selected {
+    background-color: rgba(53, 132, 228, 0.18);
+}
+
+.aiusages-quota-btn-selected:hover {
+    background-color: rgba(53, 132, 228, 0.24);
+}
+
+.aiusages-quota-inner {
+    spacing: 3px;
+}
+
+.aiusages-quota-title-row {
+    spacing: 5px;
+}
+
+.aiusages-select-dot {
+    font-size: 9.5px;
+    opacity: 0.35;
+}
+
+.aiusages-select-dot-active {
+    font-size: 9.5px;
+}
+
+.aiusages-metric-label {
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.aiusages-metric-label-selected {
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.aiusages-metric-reset {
+    font-size: 9.5px;
+    opacity: 0.58;
+    margin-right: 8px;
+}
+
+.aiusages-metric-value {
+    font-size: 11px;
+    font-weight: bold;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-quota-bar {
+    margin: 1px 0;
+}
+
+.aiusages-monthly-line {
+    spacing: 6px;
+}
+
+.aiusages-monthly-inner {
+    spacing: 6px;
+}
+
+.aiusages-monthly-value {
+    font-size: 10px;
+    font-weight: 600;
+    opacity: 0.72;
+}
+
+.aiusages-muted-icon {
+    opacity: 0.62;
+}
+
+/* ------------------------------------------------------------------ */
+/* Google Billing Day Inline Editor & Pills                           */
+/* ------------------------------------------------------------------ */
+
+.aiusages-pill-btn {
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 500;
+    background-color: rgba(127, 127, 127, 0.14);
+}
+
+.aiusages-pill-btn:hover {
+    background-color: rgba(127, 127, 127, 0.22);
+}
+
+.aiusages-pill-accent-btn {
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    background-color: rgba(53, 132, 228, 0.16);
+}
+
+.aiusages-pill-accent-btn:hover {
+    background-color: rgba(53, 132, 228, 0.24);
+}
+
+.aiusages-billing-editor {
+    spacing: 6px;
+    padding: 6px 8px;
+    border-radius: 7px;
+    background-color: rgba(53, 132, 228, 0.12);
+}
+
+.aiusages-billing-editor-label {
+    font-size: 10.5px;
+    font-weight: 600;
+}
+
+.aiusages-step-btn {
+    padding: 3px 5px;
+    border-radius: 5px;
+    background-color: rgba(127, 127, 127, 0.16);
+}
+
+.aiusages-step-btn:hover {
+    background-color: rgba(127, 127, 127, 0.26);
+}
+
+.aiusages-billing-day-value {
+    font-size: 11px;
+    font-weight: bold;
+    font-feature-settings: "tnum";
+    padding: 0 3px;
+}
+
+.aiusages-editor-save-btn {
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #ffffff;
+    background-color: #3584e4;
+}
+
+.aiusages-editor-save-btn:hover {
+    background-color: #1c71d8;
+}
+
+.aiusages-editor-btn {
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    background-color: rgba(127, 127, 127, 0.16);
+}
+
+.aiusages-editor-btn:hover {
+    background-color: rgba(127, 127, 127, 0.26);
+}
+
+.aiusages-editor-close-btn {
+    padding: 3px;
+    border-radius: 99px;
+    opacity: 0.70;
+}
+
+.aiusages-editor-close-btn:hover {
+    background-color: rgba(127, 127, 127, 0.18);
+    opacity: 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* OpenRouter, Generic & Status Rows                                  */
+/* ------------------------------------------------------------------ */
+
+.aiusages-openrouter-row {
     spacing: 8px;
+    padding: 2px 0;
+}
+
+.aiusages-balance-big {
+    font-size: 16px;
+    font-weight: bold;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-green-badge,
+.aiusages-accent-badge {
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.aiusages-accent-text {
+    font-size: 10.5px;
+    font-weight: 600;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-error-text,
+.aiusages-error,
+.aiusages-error-inline {
+    font-weight: 600;
+}
+
+.aiusages-error-text,
+.aiusages-error {
+    font-size: 10px;
+}
+
+.aiusages-error-inline {
+    font-size: 9px;
+}
+
+.aiusages-generic-row {
+    spacing: 6px;
+    padding: 2px 0;
+}
+
+.aiusages-generic-status-ok {
+    font-size: 11.5px;
+    font-weight: bold;
+}
+
+.aiusages-generic-status-off {
+    font-size: 11.5px;
+    font-weight: bold;
+    opacity: 0.55;
+}
+
+.aiusages-note {
+    font-size: 10px;
+    opacity: 0.62;
+}
+
+.aiusages-unavail-tile {
+    spacing: 8px;
+    padding: 6px 8px;
+    border-radius: 7px;
+    background-color: rgba(127, 127, 127, 0.12);
+}
+
+.aiusages-unavail-texts {
+    spacing: 2px;
+}
+
+.aiusages-unavail-title {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ */
+/* Stacked Usage Trend Section                                        */
+/* ------------------------------------------------------------------ */
+
+.aiusages-trend-section {
+    spacing: 4px;
+}
+
+.aiusages-trend-header-btn {
+    padding: 3px 4px;
+    border-radius: 5px;
+}
+
+.aiusages-trend-header-btn:hover {
+    background-color: rgba(127, 127, 127, 0.14);
+}
+
+.aiusages-trend-title-group {
+    spacing: 4px;
+}
+
+.aiusages-trend-title {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.aiusages-trend-expand-icon {
+    font-size: 10px;
+}
+
+.aiusages-sparkline {
+    margin-left: 6px;
+}
+
+.aiusages-trend-row {
+    spacing: 6px;
+    padding: 0 4px;
+}
+
+.aiusages-trend-label {
+    font-size: 10.5px;
+    font-weight: 500;
+    opacity: 0.70;
+}
+
+.aiusages-trend-val {
+    font-size: 10.5px;
+    font-weight: 600;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-trend-meta-row {
+    spacing: 6px;
+    padding: 1px 4px 0 4px;
+}
+
+.aiusages-trend-label-compact {
+    font-size: 9.5px;
+    font-weight: 500;
+    opacity: 0.60;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-log-pill {
+    spacing: 5px;
+    margin-top: 2px;
+    padding: 3px 7px;
+    border-radius: 6px;
+    background-color: rgba(127, 127, 127, 0.12);
+}
+
+.aiusages-log-text {
+    font-size: 9.5px;
+    opacity: 0.68;
+}
+
+/* ------------------------------------------------------------------ */
+/* Expandable 30-Day Detailed Trend Drawer                            */
+/* ------------------------------------------------------------------ */
+
+.aiusages-trend-drawer {
+    spacing: 7px;
+    margin-top: 4px;
+    padding: 8px;
+    border-radius: 8px;
+    background-color: rgba(127, 127, 127, 0.12);
+}
+
+.aiusages-drawer-head {
+    spacing: 6px;
+}
+
+.aiusages-drawer-title {
+    font-size: 11.5px;
+    font-weight: bold;
+}
+
+.aiusages-drawer-subtitle {
+    font-size: 10px;
+    opacity: 0.62;
+}
+
+.aiusages-metric-cards {
+    spacing: 6px;
+}
+
+.aiusages-summary-card {
+    spacing: 2px;
+    padding: 5px 7px;
+    border-radius: 6px;
+    background-color: rgba(127, 127, 127, 0.14);
+}
+
+.aiusages-summary-title {
+    font-size: 9px;
+    opacity: 0.64;
+}
+
+.aiusages-summary-val,
+.aiusages-summary-val-green,
+.aiusages-summary-val-accent {
+    font-size: 11px;
+    font-weight: bold;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-inspect-banner {
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+    background-color: rgba(127, 127, 127, 0.14);
+}
+
+.aiusages-inspect-tip {
+    font-size: 10px;
+    opacity: 0.64;
+}
+
+.aiusages-inspect-date {
+    width: 126px;
+    spacing: 5px;
+}
+
+.aiusages-inspect-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 3px;
+    background-color: #3584e4;
+}
+
+.aiusages-inspect-date-lbl {
+    font-size: 10px;
+    font-weight: 600;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-inspect-sep {
+    font-size: 9.5px;
+    opacity: 0.55;
+    margin: 0 6px;
+}
+
+.aiusages-inspect-tok {
+    spacing: 4px;
+}
+
+.aiusages-inspect-tok-val {
+    font-size: 10px;
+    font-weight: bold;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-inspect-unit {
+    font-size: 10px;
+    opacity: 0.68;
+}
+
+.aiusages-inspect-cost-val {
+    font-size: 10px;
+    font-weight: bold;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-plot-box {
+    spacing: 4px;
+    padding: 8px;
+    border-radius: 7px;
+    background-color: rgba(127, 127, 127, 0.10);
+}
+
+.aiusages-chart-row {
+    spacing: 6px;
+}
+
+.aiusages-y-axis {
+    padding: 0;
+}
+
+.aiusages-chart {
+    margin: 0;
+}
+
+.aiusages-x-axis {
+    padding-top: 2px;
+}
+
+.aiusages-axis-label {
+    font-size: 9px;
+    opacity: 0.60;
+    font-feature-settings: "tnum";
+}
+
+.aiusages-axis-label-today {
+    font-size: 9px;
+    font-weight: bold;
+    font-feature-settings: "tnum";
+}
+
+/* ------------------------------------------------------------------ */
+/* Provider Activation & Management (2-Column Grid inside ScrollView) */
+/* ------------------------------------------------------------------ */
+
+.aiusages-mgmt-section {
+    spacing: 6px;
+    padding-bottom: 4px;
+}
+
+.aiusages-section-heading {
+    font-size: 10.5px;
+    font-weight: bold;
+    opacity: 0.68;
+}
+
+.aiusages-collapse-btn {
+    padding: 3px 7px;
+    border-radius: 5px;
+}
+
+.aiusages-collapse-btn:hover {
+    background-color: rgba(127, 127, 127, 0.16);
+}
+
+.aiusages-collapse-inner {
+    spacing: 3px;
+}
+
+.aiusages-collapse-label {
+    font-size: 10.5px;
+    font-weight: 600;
+}
+
+.aiusages-provider-grid-box {
+    spacing: 6px;
+    padding: 8px;
+    border-radius: 10px;
+    background-color: rgba(127, 127, 127, 0.10);
+}
+
+.aiusages-provider-grid-row {
+    spacing: 6px;
+}
+
+.aiusages-grid-tile {
+    padding: 6px 8px;
+    border-radius: 7px;
+    background-color: rgba(127, 127, 127, 0.14);
+}
+
+.aiusages-grid-tile:hover {
+    background-color: rgba(127, 127, 127, 0.22);
+}
+
+.aiusages-grid-tile-active {
+    background-color: rgba(53, 132, 228, 0.18);
+}
+
+.aiusages-grid-tile-active:hover {
+    background-color: rgba(53, 132, 228, 0.26);
+}
+
+.aiusages-grid-tile-inner {
+    spacing: 7px;
+}
+
+.aiusages-icon-chip-wrap {
+    width: 24px;
+    height: 24px;
+}
+
+.aiusages-icon-chip {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background-color: rgba(127, 127, 127, 0.20);
+}
+
+.aiusages-detected-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background-color: #2ec27e;
+}
+
+.aiusages-grid-name {
+    font-size: 11px;
+    font-weight: normal;
+    opacity: 0.72;
+}
+
+.aiusages-grid-name-active {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.aiusages-switch {
+    width: 24px;
+    height: 14px;
+    border-radius: 7px;
+    padding: 2px;
+    background-color: rgba(127, 127, 127, 0.35);
+}
+
+.aiusages-switch-on {
+    background-color: #3584e4;
+}
+
+.aiusages-switch-knob {
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    background-color: #ffffff;
+}
+
+/* ------------------------------------------------------------------ */
+/* Footer                                                             */
+/* ------------------------------------------------------------------ */
+
+.aiusages-footer {
+    padding: 0 12px 6px 12px;
+}
+
+.aiusages-footer-row {
+    spacing: 8px;
+}
+
+.aiusages-checkbox-btn {
+    padding: 3px 4px;
+    border-radius: 5px;
+}
+
+.aiusages-checkbox-btn:hover {
+    background-color: rgba(127, 127, 127, 0.14);
+}
+
+.aiusages-checkbox-inner {
+    spacing: 5px;
+}
+
+.aiusages-checkbox-icon {
+    opacity: 0.62;
+}
+
+.aiusages-footer-check-label {
+    font-size: 10.5px;
+    opacity: 0.74;
+}
+
+.aiusages-coffee-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    background-color: #ffdd00;
+    color: #111111;
+    font-size: 10.5px;
+    font-weight: 600;
+}
+
+.aiusages-coffee-btn:hover {
+    background-color: #ffe63b;
+}
+
+.aiusages-footer-meta {
+    padding-top: 3px;
+}
+
+.aiusages-crafted {
+    font-size: 9px;
+    font-weight: 500;
+    opacity: 0.48;
 }
