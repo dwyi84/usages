@@ -89,6 +89,15 @@ Reload the shell (`Alt+F2` → `r` on X11, or log out on Wayland) and enable
 
 ---
 
+## Troubleshooting & Engineering History (Linux / GNOME Shell 46)
+
+### Popup Right/Bottom Edge Ghosting & 1-Second Flicker on X11 (Resolved in `v0.2.13`)
+- **Symptom:** On Ubuntu 24.04 (GNOME 46 / Mutter X11), opening the popup or scrolling down caused stale pixels / afterimages of the previous screen along the right and bottom edges of the card scroll area (flickering at 1-second intervals alongside top-bar updates, while GNOME Screenshot UI rendered cleanly because full-stage capture bypasses clipped redraws).
+- **Root Cause:** `St.ScrollView` in GNOME Shell 46 had only `max-height: 480px` (no `min-height`) while its direct child `PopupMenuSection.actor` (`.aiusages-body`) carried `padding: 8px 12px`, and `scrollSection.actor` carried `clip_to_allocation: true`. Under X11 partial/clipped redraws, the `padding` on the `St.ScrollView` direct child combined with a non-fixed scroll viewport height caused `StScrollView`'s allocation/clip bounds and paint volume to mismatch on the right and bottom edges. (Earlier steps in `v0.2.10`–`v0.2.12` also disabled `St.ScrollView` fade offsets, replaced `St.DrawingArea` quota bars with `St.Widget`, flattened `.aiusages-menu` `box-shadow`, and set `Clutter.OffscreenRedirect.AUTOMATIC_FOR_OPACITY` on `BoxPointer`.)
+- **Fix (`v0.2.13`):** Fixed `.aiusages-scroll` to `min-height: 480px; max-height: 480px;`, removed `padding` from `.aiusages-body` (moving padding onto `.aiusages-provider-card`, `.aiusages-mgmt-section`, and `.aiusages-section-divider`), and removed the extra `clip_to_allocation` wrapper on `scrollSection.actor`.
+
+---
+
 ## Privacy & Security
 
 AI Usages runs completely on your local machine:
