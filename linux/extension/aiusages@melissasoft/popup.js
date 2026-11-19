@@ -19,7 +19,7 @@ import {
 import {disposeContext} from './panel.js';
 import {errorLabel, t} from './i18n.js';
 
-const APP_VERSION = '0.2.10';
+const APP_VERSION = '0.2.11';
 const POPUP_WIDTH = 440;
 const BUY_ME_A_COFFEE_URL = 'https://buymeacoffee.com/dwyi84d';
 
@@ -274,6 +274,7 @@ export class PopupView {
 
         this._menu.box.add_style_class_name('aiusages-menu');
         this._menu.box.set_width(POPUP_WIDTH);
+        this._menu.actor?.set_offscreen_redirect?.(Clutter.OffscreenRedirect.AUTOMATIC_FOR_OPACITY);
 
         this._showProviderSettings = false;
         this._expandedTrendProvider = null;
@@ -368,6 +369,7 @@ export class PopupView {
             vscrollbar_policy: St.PolicyType.EXTERNAL,
             overlay_scrollbars: false,
             enable_mouse_scrolling: true,
+            x_expand: true,
             clip_to_allocation: true,
         });
         scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.EXTERNAL);
