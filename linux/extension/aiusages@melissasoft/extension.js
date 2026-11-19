@@ -60,7 +60,7 @@ export default class AIUsagesExtension extends Extension {
         this._interfaceSignals = [];
         this._lastPercents = new Map();
 
-        this._installedVersion = this.metadata?.['version-name'] ?? '0.2.13';
+        this._installedVersion = this.metadata?.['version-name'] ?? '0.2.14';
         this._updateState = 'idle';
         this._latestVersion = null;
         this._latestTag = null;
@@ -196,7 +196,7 @@ export default class AIUsagesExtension extends Extension {
     }
 
     get currentVersion() {
-        return this._installedVersion ?? this.metadata?.['version-name'] ?? '0.2.13';
+        return this._installedVersion ?? this.metadata?.['version-name'] ?? '0.2.14';
     }
 
     get updateState() {

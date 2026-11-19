@@ -11,6 +11,7 @@ import {
     createBrandIcon,
     createBrandIconChip,
     createHeaderIcon,
+    drawQuotaBar,
     drawSparkline,
     drawTrend,
     headerGIcon,
@@ -18,8 +19,8 @@ import {
 import {disposeContext} from './panel.js';
 import {errorLabel, t} from './i18n.js';
 
-const APP_VERSION = '0.2.13';
-const POPUP_WIDTH = 440;
+const APP_VERSION = '0.2.14';
+const POPUP_WIDTH = 520;
 const BUY_ME_A_COFFEE_URL = 'https://buymeacoffee.com/dwyi84d';
 
 const INTERVAL_OPTIONS = [
@@ -174,7 +175,7 @@ class SparklineArea extends St.DrawingArea {
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._bars = bars ?? [];
-        this.set_size(110, 14);
+        this.set_size(80, 14);
         this.connect('repaint', () => this._repaint());
     }
 
@@ -186,7 +187,7 @@ class SparklineArea extends St.DrawingArea {
     _repaint() {
         const cr = this.get_context();
         try {
-            const width = this.get_width() || 110;
+            const width = this.get_width() || 80;
             const height = this.get_height() || 14;
             drawSparkline(this, cr, this._bars, width, height);
         } finally {
@@ -879,6 +880,10 @@ export class PopupView {
         ));
 
         if (snapshot?.available) {
+            const split = new St.BoxLayout({style_class: 'aiusages-two-col', x_expand: true});
+            const leftCol = new St.BoxLayout({vertical: true, style_class: 'aiusages-col-left', x_expand: true});
+            leftCol.set_width(232);
+
             const rowLabels = {
                 opencode_5h: t('5시간 윈도우', '5-hour window'),
                 opencode_weekly: t('주간', 'Weekly'),
@@ -895,7 +900,7 @@ export class PopupView {
             };
             for (const key of ['opencode_5h', 'opencode_weekly', 'opencode_monthly']) {
                 const initial = getMetricData(key);
-                card.add_child(this._quotaProgressBar(
+                leftCol.add_child(this._quotaProgressBar(
                     'opencode',
                     key,
                     rowLabels[key],
@@ -907,10 +912,18 @@ export class PopupView {
             }
 
             if (snapshot.error && snapshot.error !== 'rate_limited')
-                card.add_child(this._inlineErrorLabel(snapshot.error));
+                leftCol.add_child(this._inlineErrorLabel(snapshot.error));
+
+            split.add_child(leftCol);
 
             const getTrend = () => this._extension.state?.providers?.opencode?.trend ?? emptyTrend();
-            card.add_child(this._trendSection('opencode', 'OpenCode Go', getTrend(), getTrend, isDark));
+            const trendPair = this._trendSection('opencode', 'OpenCode Go', getTrend(), getTrend, isDark);
+            trendPair.summary.set_width(234);
+            split.add_child(trendPair.summary);
+            card.add_child(split);
+
+            if (trendPair.drawer)
+                card.add_child(trendPair.drawer);
         } else {
             card.add_child(this._unavailableTile(
                 t('OpenCode Go 인증 미감지', 'OpenCode Go Credentials Not Detected'),
@@ -954,6 +967,10 @@ export class PopupView {
             card.add_child(this._googleBillingEditor(billingDay));
 
         if (snapshot?.available) {
+            const split = new St.BoxLayout({style_class: 'aiusages-two-col', x_expand: true});
+            const leftCol = new St.BoxLayout({vertical: true, style_class: 'aiusages-col-left', x_expand: true});
+            leftCol.set_width(232);
+
             const getMetricData = key => {
                 const cur = this._extension.state?.providers?.google_ai;
                 const entry = (cur?.rows ?? []).find(r => r.key === key);
@@ -964,7 +981,7 @@ export class PopupView {
                 };
             };
 
-            card.add_child(new St.Label({
+            leftCol.add_child(new St.Label({
                 text: t('5시간 윈도우', '5-hour window'),
                 style_class: 'aiusages-sub-header',
             }));
@@ -973,7 +990,7 @@ export class PopupView {
                 ['google_claude_5h', 'Claude & GPT'],
             ]) {
                 const initial = getMetricData(key);
-                card.add_child(this._quotaProgressBar(
+                leftCol.add_child(this._quotaProgressBar(
                     'google_ai',
                     key,
                     label,
@@ -984,7 +1001,7 @@ export class PopupView {
                 ));
             }
 
-            card.add_child(new St.Label({
+            leftCol.add_child(new St.Label({
                 text: t('주간', 'Weekly'),
                 style_class: 'aiusages-sub-header',
             }));
@@ -993,7 +1010,7 @@ export class PopupView {
                 ['google_claude_weekly', 'Claude & GPT'],
             ]) {
                 const initial = getMetricData(key);
-                card.add_child(this._quotaProgressBar(
+                leftCol.add_child(this._quotaProgressBar(
                     'google_ai',
                     key,
                     label,
@@ -1008,7 +1025,7 @@ export class PopupView {
             const argonEntry = rows.find(r => r.key === 'google_argon_weekly');
             if (argonEntry || snapshot.metrics?.google_argon_weekly !== undefined) {
                 const initial = getMetricData('google_argon_weekly');
-                card.add_child(this._quotaProgressBar(
+                leftCol.add_child(this._quotaProgressBar(
                     'google_ai',
                     'google_argon_weekly',
                     'Gemini 4 Argon',
@@ -1067,7 +1084,7 @@ export class PopupView {
                 const editBtn = new St.Button({
                     style_class: 'aiusages-pill-btn',
                     can_focus: true,
-                    label: t('리셋일 변경', 'Change Reset Day'),
+                    label: t('리셋일 변경', 'Change'),
                 });
                 editBtn.connect('clicked', () => {
                     this._selectedBillingDay = this._extension.settings?.get_uint('google-billing-day') || billingDay;
@@ -1079,7 +1096,7 @@ export class PopupView {
                 const setBtn = new St.Button({
                     style_class: 'aiusages-pill-accent-btn',
                     can_focus: true,
-                    label: t('+ 리셋일 설정', '+ Set Reset Day'),
+                    label: t('+ 리셋일', '+ Reset'),
                 });
                 setBtn.connect('clicked', () => {
                     this._selectedBillingDay = new Date().getDate();
@@ -1088,13 +1105,21 @@ export class PopupView {
                 });
                 monthlyLine.add_child(setBtn);
             }
-            card.add_child(monthlyLine);
+            leftCol.add_child(monthlyLine);
 
             if (snapshot.error && snapshot.error !== 'rate_limited')
-                card.add_child(this._inlineErrorLabel(snapshot.error));
+                leftCol.add_child(this._inlineErrorLabel(snapshot.error));
+
+            split.add_child(leftCol);
 
             const getTrend = () => this._extension.state?.providers?.google_ai?.trend ?? emptyTrend();
-            card.add_child(this._trendSection('google_ai', 'Google AI Pro', getTrend(), getTrend, isDark));
+            const trendPair = this._trendSection('google_ai', 'Google AI Pro', getTrend(), getTrend, isDark);
+            trendPair.summary.set_width(234);
+            split.add_child(trendPair.summary);
+            card.add_child(split);
+
+            if (trendPair.drawer)
+                card.add_child(trendPair.drawer);
         } else {
             card.add_child(this._unavailableTile(
                 t('Google AI Pro (Antigravity) 미감지', 'Google AI Pro (Antigravity) Not Detected'),
@@ -1221,6 +1246,10 @@ export class PopupView {
             getRightState
         ));
 
+        const split = new St.BoxLayout({style_class: 'aiusages-two-col', x_expand: true});
+        const leftCol = new St.BoxLayout({vertical: true, style_class: 'aiusages-col-left', x_expand: true});
+        leftCol.set_width(232);
+
         const connected = Boolean(snapshot?.connected);
         const balanceStr = getBalanceStr();
         const statusRow = new St.BoxLayout({x_expand: true, y_align: Clutter.ActorAlign.CENTER, style_class: 'aiusages-openrouter-row'});
@@ -1240,26 +1269,36 @@ export class PopupView {
             balanceLabel.text = cur?.connected ? getBalanceStr() : '—';
         });
 
+        leftCol.add_child(statusRow);
+
         const keyBtn = new St.Button({
             style_class: connected ? 'aiusages-pill-btn' : 'aiusages-pill-accent-btn',
             can_focus: true,
+            x_align: Clutter.ActorAlign.START,
             label: connected ? t('새 키 등록', 'Replace Key') : t('API 키 설정', 'Configure Key'),
         });
         keyBtn.connect('clicked', () => {
             this._menu.close();
             this._extension.openPreferences();
         });
-        statusRow.add_child(keyBtn);
-        card.add_child(statusRow);
+        leftCol.add_child(keyBtn);
 
         if (!connected && snapshot?.error && snapshot.error !== 'missing_key')
-            card.add_child(this._inlineErrorLabel(snapshot.error));
+            leftCol.add_child(this._inlineErrorLabel(snapshot.error));
+
+        split.add_child(leftCol);
 
         const getTrend = () => {
             const cur = this._extension.state?.providers?.openrouter;
             return cur?.trend ?? emptyTrend(cur?.connected ? t('API 키 정상 연동됨', 'API Key Connected') : '');
         };
-        card.add_child(this._trendSection('openrouter', 'OpenRouter', getTrend(), getTrend, isDark));
+        const trendPair = this._trendSection('openrouter', 'OpenRouter', getTrend(), getTrend, isDark);
+        trendPair.summary.set_width(234);
+        split.add_child(trendPair.summary);
+        card.add_child(split);
+
+        if (trendPair.drawer)
+            card.add_child(trendPair.drawer);
 
         return card;
     }
@@ -1346,13 +1385,6 @@ export class PopupView {
         left.add_child(titleLabel);
         top.add_child(left);
 
-        const resetLabel = new St.Label({
-            text: resetInfo && resetInfo !== '-' ? resetInfo : '',
-            style_class: 'aiusages-metric-reset',
-            visible: Boolean(resetInfo && resetInfo !== '-'),
-        });
-        top.add_child(resetLabel);
-
         const valueLabel = new St.Label({
             text: formatPercentLabel(percent),
             style_class: 'aiusages-metric-value',
@@ -1360,37 +1392,31 @@ export class PopupView {
         top.add_child(valueLabel);
         inner.add_child(top);
 
-        const bar = new St.Widget({
+        const bar = new St.DrawingArea({
             style_class: 'aiusages-quota-bar',
             x_expand: true,
-            layout_manager: new Clutter.FixedLayout(),
         });
         bar.set_height(5);
-        const fill = new St.Widget({
-            style_class: 'aiusages-quota-fill aiusages-quota-fill-ok',
-            visible: false,
-        });
-        bar.add_child(fill);
-        const syncBarFill = () => {
-            const clamped = Math.max(0, Math.min(100, Number(curPercent) || 0));
-            const statusClass = curStatus === 'rate_limited'
-                ? 'aiusages-quota-fill-rate'
-                : clamped <= 15 ? 'aiusages-quota-fill-crit'
-                : clamped <= 35 ? 'aiusages-quota-fill-warn'
-                : 'aiusages-quota-fill-ok';
-            fill.style_class = `aiusages-quota-fill ${statusClass}`;
-            const w = bar.get_width();
-            if (clamped <= 0 || w <= 0) {
-                fill.visible = false;
-                return;
+        bar.connect('repaint', () => {
+            const cr = bar.get_context();
+            try {
+                const w = bar.get_width();
+                const h = bar.get_height();
+                if (w > 0 && h > 0)
+                    drawQuotaBar(bar, cr, curPercent, curStatus, w, h);
+            } finally {
+                disposeContext(cr);
             }
-            const fillW = Math.min(w, Math.max(6, Math.round((w * clamped) / 100)));
-            fill.set_position(0, 0);
-            fill.set_size(fillW, 5);
-            fill.visible = true;
-        };
-        bar.connect('notify::allocation', syncBarFill);
+        });
         inner.add_child(bar);
+
+        const resetLabel = new St.Label({
+            text: resetInfo && resetInfo !== '-' ? resetInfo : '',
+            style_class: 'aiusages-metric-reset',
+            visible: Boolean(resetInfo && resetInfo !== '-'),
+        });
+        resetLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        inner.add_child(resetLabel);
 
         const btn = new St.Button({
             style_class: 'aiusages-quota-btn',
@@ -1424,11 +1450,10 @@ export class PopupView {
                 if (curPercent !== nextPercent || curStatus !== nextStatus) {
                     curPercent = nextPercent;
                     curStatus = nextStatus;
-                    syncBarFill();
+                    bar.queue_repaint();
                 }
             }
         };
-        syncBarFill();
         apply();
         this._bodyUpdaters.push(apply);
 
@@ -1439,8 +1464,6 @@ export class PopupView {
         const trend = initialTrend;
         const box = new St.BoxLayout({vertical: true, style_class: 'aiusages-trend-section', x_expand: true});
         const expanded = this._expandedTrendProvider === id;
-
-        box.add_child(softDivider('aiusages-tile-divider'));
 
         const headContent = new St.BoxLayout({x_expand: true, y_align: Clutter.ActorAlign.CENTER});
         const titleGroup = new St.BoxLayout({y_align: Clutter.ActorAlign.CENTER, style_class: 'aiusages-trend-title-group'});
@@ -1476,20 +1499,22 @@ export class PopupView {
         box.add_child(yesterdayRow.actor);
         box.add_child(monthRow.actor);
 
-        // Daily Avg & Peak Day on one muted meta line
-        const metaRow = new St.BoxLayout({x_expand: true, y_align: Clutter.ActorAlign.CENTER, style_class: 'aiusages-trend-meta-row'});
+        const metaRow = new St.BoxLayout({vertical: true, x_expand: true, style_class: 'aiusages-trend-meta-row'});
         const avgLabel = new St.Label({
             text: '',
             style_class: 'aiusages-trend-label-compact',
             x_expand: true,
         });
+        avgLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         metaRow.add_child(avgLabel);
 
         const peakLabel = new St.Label({
             text: '',
             style_class: 'aiusages-trend-label-compact',
+            x_expand: true,
             visible: false,
         });
+        peakLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         metaRow.add_child(peakLabel);
         box.add_child(metaRow);
 
@@ -1555,10 +1580,9 @@ export class PopupView {
         if (getTrend)
             this._bodyUpdaters.push(() => applyTrend(getTrend()));
 
-        if (expanded)
-            box.add_child(this._detailedTrendDrawer(title, trend, getTrend, isDark));
+        const drawer = expanded ? this._detailedTrendDrawer(title, trend, getTrend, isDark) : null;
 
-        return box;
+        return {summary: box, drawer};
     }
 
     _trendMetricRow(label) {
@@ -1575,8 +1599,8 @@ export class PopupView {
         lbl.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         row.add_child(lbl);
 
-        const spendCell = rightAlignedCellWithLabel('', 'aiusages-trend-val', 54);
-        const tokenCell = rightAlignedCellWithLabel('', 'aiusages-trend-val', 94);
+        const spendCell = rightAlignedCellWithLabel('', 'aiusages-trend-val', 44);
+        const tokenCell = rightAlignedCellWithLabel('', 'aiusages-trend-val', 78);
         row.add_child(spendCell.bin);
         row.add_child(tokenCell.bin);
         return {
