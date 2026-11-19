@@ -31,6 +31,16 @@
     width: 440px;
     min-width: 440px;
     max-width: 440px;
+    box-shadow: none;
+    border-radius: 8px;
+}
+
+.aiusages-menu-dark {
+    background-color: #242424;
+}
+
+.aiusages-menu-light {
+    background-color: #fafafa;
 }
 
 .aiusages-menu-dark .aiusages-header-icon,
@@ -376,6 +386,30 @@
 
 .aiusages-quota-bar {
     margin: 1px 0;
+    height: 5px;
+    border-radius: 3px;
+    background-color: rgba(127, 127, 127, 0.22);
+}
+
+.aiusages-quota-fill {
+    height: 5px;
+    border-radius: 3px;
+}
+
+.aiusages-quota-fill-ok {
+    background-color: #2ed158;
+}
+
+.aiusages-quota-fill-warn {
+    background-color: #ff9f0a;
+}
+
+.aiusages-quota-fill-crit {
+    background-color: #ff453a;
+}
+
+.aiusages-quota-fill-rate {
+    background-color: #ae73f2;
 }
 
 .aiusages-monthly-line {

@@ -11,7 +11,6 @@ import {
     createBrandIcon,
     createBrandIconChip,
     createHeaderIcon,
-    drawQuotaBar,
     drawSparkline,
     drawTrend,
     headerGIcon,
@@ -19,7 +18,7 @@ import {
 import {disposeContext} from './panel.js';
 import {errorLabel, t} from './i18n.js';
 
-const APP_VERSION = '0.2.11';
+const APP_VERSION = '0.2.12';
 const POPUP_WIDTH = 440;
 const BUY_ME_A_COFFEE_URL = 'https://buymeacoffee.com/dwyi84d';
 
@@ -1362,22 +1361,36 @@ export class PopupView {
         top.add_child(valueLabel);
         inner.add_child(top);
 
-        const bar = new St.DrawingArea({
+        const bar = new St.Widget({
             style_class: 'aiusages-quota-bar',
             x_expand: true,
+            layout_manager: new Clutter.FixedLayout(),
         });
         bar.set_height(5);
-        bar.connect('repaint', () => {
-            const cr = bar.get_context();
-            try {
-                const w = bar.get_width();
-                const h = bar.get_height();
-                if (w > 0 && h > 0)
-                    drawQuotaBar(bar, cr, curPercent, curStatus, w, h);
-            } finally {
-                disposeContext(cr);
-            }
+        const fill = new St.Widget({
+            style_class: 'aiusages-quota-fill aiusages-quota-fill-ok',
+            visible: false,
         });
+        bar.add_child(fill);
+        const syncBarFill = () => {
+            const clamped = Math.max(0, Math.min(100, Number(curPercent) || 0));
+            const statusClass = curStatus === 'rate_limited'
+                ? 'aiusages-quota-fill-rate'
+                : clamped <= 15 ? 'aiusages-quota-fill-crit'
+                : clamped <= 35 ? 'aiusages-quota-fill-warn'
+                : 'aiusages-quota-fill-ok';
+            fill.style_class = `aiusages-quota-fill ${statusClass}`;
+            const w = bar.get_width();
+            if (clamped <= 0 || w <= 0) {
+                fill.visible = false;
+                return;
+            }
+            const fillW = Math.min(w, Math.max(6, Math.round((w * clamped) / 100)));
+            fill.set_position(0, 0);
+            fill.set_size(fillW, 5);
+            fill.visible = true;
+        };
+        bar.connect('notify::allocation', syncBarFill);
         inner.add_child(bar);
 
         const btn = new St.Button({
@@ -1412,10 +1425,11 @@ export class PopupView {
                 if (curPercent !== nextPercent || curStatus !== nextStatus) {
                     curPercent = nextPercent;
                     curStatus = nextStatus;
-                    bar.queue_repaint();
+                    syncBarFill();
                 }
             }
         };
+        syncBarFill();
         apply();
         this._bodyUpdaters.push(apply);
 
