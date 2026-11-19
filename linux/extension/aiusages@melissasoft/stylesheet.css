@@ -115,7 +115,7 @@
 }
 
 .aiusages-section-divider {
-    margin: 2px 0;
+    margin: 2px 12px;
 }
 
 .aiusages-tile-divider {
@@ -245,6 +245,7 @@
 /* ------------------------------------------------------------------ */
 
 .aiusages-scroll {
+    min-height: 480px;
     max-height: 480px;
     -st-vfade-offset: 0px;
     -st-hfade-offset: 0px;
@@ -252,7 +253,7 @@
 
 .aiusages-body {
     spacing: 8px;
-    padding: 8px 12px;
+    padding: 0;
 }
 
 .aiusages-empty {
@@ -273,7 +274,7 @@
 
 .aiusages-provider-card {
     spacing: 6px;
-    padding: 4px 2px;
+    padding: 6px 14px;
     border-radius: 0;
     background-color: transparent;
 }
@@ -830,7 +831,7 @@
 
 .aiusages-mgmt-section {
     spacing: 6px;
-    padding-bottom: 4px;
+    padding: 4px 12px 8px 12px;
 }
 
 .aiusages-section-heading {

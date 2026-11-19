@@ -18,7 +18,7 @@ import {
 import {disposeContext} from './panel.js';
 import {errorLabel, t} from './i18n.js';
 
-const APP_VERSION = '0.2.12';
+const APP_VERSION = '0.2.13';
 const POPUP_WIDTH = 440;
 const BUY_ME_A_COFFEE_URL = 'https://buymeacoffee.com/dwyi84d';
 
@@ -360,7 +360,6 @@ export class PopupView {
         this._menu.addMenuItem(this._buildHeaderSection(isDark));
 
         const scrollSection = new PopupMenu.PopupMenuSection();
-        scrollSection.actor.clip_to_allocation = true;
         const scroll = new St.ScrollView({
             style_class: 'aiusages-scroll',
             style: '-st-vfade-offset: 0px; -st-hfade-offset: 0px;',
