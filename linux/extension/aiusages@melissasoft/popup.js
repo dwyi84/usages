@@ -19,7 +19,7 @@ import {
 import {disposeContext} from './panel.js';
 import {errorLabel, t} from './i18n.js';
 
-const APP_VERSION = '0.2.14';
+const APP_VERSION = '0.2.15';
 const POPUP_WIDTH = 520;
 const BUY_ME_A_COFFEE_URL = 'https://buymeacoffee.com/dwyi84d';
 
@@ -365,13 +365,13 @@ export class PopupView {
             style_class: 'aiusages-scroll',
             style: '-st-vfade-offset: 0px; -st-hfade-offset: 0px;',
             hscrollbar_policy: St.PolicyType.NEVER,
-            vscrollbar_policy: St.PolicyType.EXTERNAL,
-            overlay_scrollbars: false,
+            vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            overlay_scrollbars: true,
             enable_mouse_scrolling: true,
             x_expand: true,
             clip_to_allocation: true,
         });
-        scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.EXTERNAL);
+        scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
         scroll.remove_effect_by_name?.('fade');
         const listSection = new PopupMenu.PopupMenuSection();
         listSection.actor.add_style_class_name('aiusages-body');
