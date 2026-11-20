@@ -4,10 +4,28 @@ import SQLite3
 public final class GoogleAIProvider: @unchecked Sendable {
     public static let shared = GoogleAIProvider()
     
+    struct KeychainCredentials: Equatable {
+        let accessToken: String?
+        let refreshToken: String?
+        let expiresAt: Date?
+        let clientId: String?
+        let clientSecret: String?
+    }
+    
+    private enum RestFetchOutcome {
+        case success(GoogleAIGroupLimits)
+        case rateLimited(HTTPURLResponse)
+        case unauthorized
+        case failed
+    }
+    
+    private let stateLock = NSLock()
     private var cachedLimits = GoogleAIGroupLimits()
     private var isFetching = false
     private var lastAgyFullFetchDate: Date?
     private var rateLimitUntil: Date?
+    private var cachedOAuthClient: (clientId: String, clientSecret: String)?
+    private var cachedOAuthToken: (refreshToken: String, accessToken: String, expiresAt: Date)?
     
     public init() {}
     
@@ -193,14 +211,42 @@ public final class GoogleAIProvider: @unchecked Sendable {
     
     // MARK: - Direct REST Engine
     private func fetchViaDirectRest() async -> GoogleAIGroupLimits? {
-        guard let token = readAccessTokenFromKeychain() else { return nil }
+        guard let credentials = readKeychainCredentials() else { return nil }
+        guard let token = await resolveAccessToken(from: credentials, forceRefresh: false) else { return nil }
         
+        switch await performRestQuotaRequest(accessToken: token) {
+        case .success(let limits):
+            return limits
+        case .rateLimited(let http):
+            handleRateLimit(response: http)
+            return nil
+        case .unauthorized:
+            guard let refreshToken = credentials.refreshToken, !refreshToken.isEmpty,
+                  let refreshed = await resolveAccessToken(from: credentials, forceRefresh: true) else {
+                return nil
+            }
+            switch await performRestQuotaRequest(accessToken: refreshed) {
+            case .success(let limits):
+                return limits
+            case .rateLimited(let http):
+                handleRateLimit(response: http)
+                return nil
+            case .unauthorized, .failed:
+                return nil
+            }
+        case .failed:
+            return nil
+        }
+    }
+    
+    private func performRestQuotaRequest(accessToken: String) async -> RestFetchOutcome {
         let endpoints = [
             "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
             "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
         ]
         
         let projects = ["aicode-consumers", "default-cli-project", ""]
+        var sawUnauthorized = false
         
         for urlStr in endpoints {
             guard let url = URL(string: urlStr) else { continue }
@@ -208,7 +254,7 @@ public final class GoogleAIProvider: @unchecked Sendable {
             for project in projects {
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
-                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 request.setValue("application/json", forHTTPHeaderField: "Accept")
                 
@@ -228,13 +274,17 @@ public final class GoogleAIProvider: @unchecked Sendable {
                     guard let http = response as? HTTPURLResponse else { continue }
                     
                     if http.statusCode == 429 {
-                        handleRateLimit(response: http)
-                        return nil
+                        return .rateLimited(http)
+                    }
+                    
+                    if http.statusCode == 401 {
+                        sawUnauthorized = true
+                        break
                     }
                     
                     if (200..<300).contains(http.statusCode) {
                         if let limits = parseRestQuotaJson(data: data) {
-                            return limits
+                            return .success(limits)
                         }
                     }
                 } catch {
@@ -243,7 +293,7 @@ public final class GoogleAIProvider: @unchecked Sendable {
             }
         }
         
-        return nil
+        return sawUnauthorized ? .unauthorized : .failed
     }
     
     private func handleRateLimit(response: HTTPURLResponse) {
@@ -346,7 +396,10 @@ public final class GoogleAIProvider: @unchecked Sendable {
                     
                     let data = outPipe.fileHandleForReading.readDataToEndOfFile()
                     if let parsed = self.parseAgyJson(data: data) {
+                        self.stateLock.lock()
                         self.lastAgyFullFetchDate = Date()
+                        self.cachedLimits = parsed
+                        self.stateLock.unlock()
                         continuation.resume(returning: parsed)
                         return
                     }
@@ -372,10 +425,11 @@ public final class GoogleAIProvider: @unchecked Sendable {
     }
     
     private func hasKeychainToken() -> Bool {
-        return readAccessTokenFromKeychain() != nil
+        guard let creds = readKeychainCredentials() else { return false }
+        return !(creds.accessToken ?? "").isEmpty || !(creds.refreshToken ?? "").isEmpty
     }
     
-    private func readAccessTokenFromKeychain() -> String? {
+    private func readKeychainCredentials() -> KeychainCredentials? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
         process.arguments = ["find-generic-password", "-s", "gemini", "-a", "antigravity", "-w"]
@@ -389,22 +443,210 @@ public final class GoogleAIProvider: @unchecked Sendable {
             process.waitUntilExit()
             guard process.terminationStatus == 0 else { return nil }
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard var str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !str.isEmpty else {
+            guard let str = String(data: data, encoding: .utf8) else {
                 return nil
             }
-            if str.hasPrefix("go-keyring-base64:") {
-                str = String(str.dropFirst("go-keyring-base64:".count))
-            }
-            guard let jsonData = Data(base64Encoded: str),
-                  let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                  let tokenDict = json["token"] as? [String: Any],
-                  let accessToken = tokenDict["access_token"] as? String else {
-                return nil
-            }
-            return accessToken
+            return Self.parseKeychainCredentials(from: str)
         } catch {
             return nil
         }
+    }
+    
+    static func parseKeychainCredentials(from rawString: String) -> KeychainCredentials? {
+        var str = rawString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !str.isEmpty else { return nil }
+        if str.hasPrefix("go-keyring-base64:") {
+            str = String(str.dropFirst("go-keyring-base64:".count))
+        }
+        guard let jsonData = Data(base64Encoded: str),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+            return nil
+        }
+        let tokenDict = (json["token"] as? [String: Any]) ?? json
+        let accessToken = (tokenDict["access_token"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let refreshToken = (tokenDict["refresh_token"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        var expiresAt: Date?
+        if let expiryStr = (tokenDict["expiry"] as? String) ?? (tokenDict["expires_at"] as? String) {
+            expiresAt = ISO8601Parser.date(from: expiryStr)
+        } else if let expiresEpoch = tokenDict["expires_at"] as? Double {
+            expiresAt = Date(timeIntervalSince1970: expiresEpoch)
+        }
+        
+        let clientId = ((json["client_id"] as? String) ?? (tokenDict["client_id"] as? String))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let clientSecret = ((json["client_secret"] as? String) ?? (tokenDict["client_secret"] as? String))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !(accessToken ?? "").isEmpty || !(refreshToken ?? "").isEmpty else {
+            return nil
+        }
+        return KeychainCredentials(
+            accessToken: accessToken?.isEmpty == true ? nil : accessToken,
+            refreshToken: refreshToken?.isEmpty == true ? nil : refreshToken,
+            expiresAt: expiresAt,
+            clientId: clientId?.isEmpty == true ? nil : clientId,
+            clientSecret: clientSecret?.isEmpty == true ? nil : clientSecret
+        )
+    }
+    
+    static func extractOAuthClients(fromBinaryData data: Data) -> [(clientId: String, clientSecret: String)] {
+        guard let text = String(data: data, encoding: .isoLatin1), !text.isEmpty else {
+            return []
+        }
+        let fullRange = NSRange(location: 0, length: (text as NSString).length)
+        guard let idRegex = try? NSRegularExpression(pattern: #"[0-9]{12,13}-[a-z0-9]{32}\.apps\.googleusercontent\.com"#),
+              let secretRegex = try? NSRegularExpression(pattern: #"GOCSPX-[A-Za-z0-9_-]{28}"#) else {
+            return []
+        }
+        let nsText = text as NSString
+        let ids = idRegex.matches(in: text, range: fullRange).map { nsText.substring(with: $0.range) }
+        let secrets = secretRegex.matches(in: text, range: fullRange).map { nsText.substring(with: $0.range) }
+        
+        var pairs = Array(zip(ids, secrets)).map { (clientId: $0.0, clientSecret: $0.1) }
+        pairs.sort { lhs, rhs in
+            let lPreferred = lhs.clientId.hasPrefix("1071")
+            let rPreferred = rhs.clientId.hasPrefix("1071")
+            if lPreferred != rPreferred {
+                return lPreferred
+            }
+            return false
+        }
+        return pairs
+    }
+    
+    static func oauthClientCandidates(
+        credentials: KeychainCredentials,
+        cachedClient: (clientId: String, clientSecret: String)?,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        agyBinaryData: Data? = nil
+    ) -> [(clientId: String, clientSecret: String)] {
+        var candidates: [(clientId: String, clientSecret: String)] = []
+        
+        func add(_ cid: String?, _ csec: String?) {
+            guard let cid = cid?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let csec = csec?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !cid.isEmpty, !csec.isEmpty else {
+                return
+            }
+            if !candidates.contains(where: { $0.clientId == cid && $0.clientSecret == csec }) {
+                candidates.append((clientId: cid, clientSecret: csec))
+            }
+        }
+        
+        add(credentials.clientId, credentials.clientSecret)
+        add(environment["AIUSAGES_GOOGLE_CLIENT_ID"], environment["AIUSAGES_GOOGLE_CLIENT_SECRET"])
+        if let cachedClient {
+            add(cachedClient.clientId, cachedClient.clientSecret)
+        }
+        if let agyBinaryData {
+            for pair in extractOAuthClients(fromBinaryData: agyBinaryData) {
+                add(pair.clientId, pair.clientSecret)
+            }
+        }
+        return candidates
+    }
+    
+    private func resolveAccessToken(
+        from credentials: KeychainCredentials,
+        forceRefresh: Bool,
+        now: Date = Date()
+    ) async -> String? {
+        guard let refreshToken = credentials.refreshToken, !refreshToken.isEmpty else {
+            return credentials.accessToken
+        }
+        
+        if !forceRefresh {
+            let cached = stateLock.withLock { cachedOAuthToken }
+            
+            if let cached,
+               cached.refreshToken == refreshToken,
+               cached.expiresAt > now.addingTimeInterval(60) {
+                return cached.accessToken
+            }
+            
+            if let accessToken = credentials.accessToken, !accessToken.isEmpty,
+               let expiresAt = credentials.expiresAt,
+               expiresAt > now.addingTimeInterval(60) {
+                return accessToken
+            }
+        }
+        
+        if let refreshed = await refreshAccessToken(credentials: credentials, refreshToken: refreshToken, now: now) {
+            return refreshed
+        }
+        
+        // A cached/keychain access token may still work even if refresh fails (e.g. offline/transient).
+        return forceRefresh ? nil : credentials.accessToken
+    }
+    
+    private func refreshAccessToken(
+        credentials: KeychainCredentials,
+        refreshToken: String,
+        now: Date
+    ) async -> String? {
+        let currentCachedClient = stateLock.withLock { cachedOAuthClient }
+        
+        var agyData: Data?
+        if let agyPath = findAgyExecutable() {
+            let resolvedURL = URL(fileURLWithPath: agyPath).resolvingSymlinksInPath()
+            agyData = try? Data(contentsOf: resolvedURL, options: [.mappedIfSafe])
+        }
+        
+        var candidates = Self.oauthClientCandidates(
+            credentials: credentials,
+            cachedClient: currentCachedClient,
+            agyBinaryData: agyData
+        )
+        if candidates.isEmpty {
+            candidates = [("", "")]
+        }
+        
+        guard let tokenURL = URL(string: "https://oauth2.googleapis.com/token") else {
+            return nil
+        }
+        
+        for candidate in candidates {
+            var request = URLRequest(url: tokenURL)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 10.0
+            
+            let body: [String: String] = [
+                "client_id": candidate.clientId,
+                "client_secret": candidate.clientSecret,
+                "refresh_token": refreshToken,
+                "grant_type": "refresh_token"
+            ]
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse,
+                      (200..<300).contains(http.statusCode),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let newAccess = json["access_token"] as? String,
+                      !newAccess.isEmpty else {
+                    continue
+                }
+                
+                let expiresIn = (json["expires_in"] as? Double)
+                    ?? (json["expires_in"] as? Int).map(Double.init)
+                    ?? 3600.0
+                let expiresAt = now.addingTimeInterval(expiresIn)
+                
+                stateLock.withLock {
+                    cachedOAuthToken = (refreshToken: refreshToken, accessToken: newAccess, expiresAt: expiresAt)
+                    if !candidate.clientId.isEmpty && !candidate.clientSecret.isEmpty {
+                        cachedOAuthClient = candidate
+                    }
+                }
+                
+                return newAccess
+            } catch {
+                continue
+            }
+        }
+        
+        return nil
     }
     
     private func parseAgyJson(data: Data) -> GoogleAIGroupLimits? {

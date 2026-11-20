@@ -148,6 +148,43 @@ struct UsageCorrectnessTests {
         #expect(GoogleAIGroupLimits().overallRemainingPercent == 0)
     }
     
+    // MARK: - Google OAuth credentials & client extraction
+    
+    @Test("Parses go-keyring-base64 keychain credentials with expiry and refresh token")
+    func parsesKeychainCredentials() {
+        let json = """
+        {
+          "token": {
+            "access_token": "ya29.test-access",
+            "refresh_token": "1//test-refresh",
+            "expiry": "2026-11-20T16:07:34.336223+09:00"
+          }
+        }
+        """
+        let encoded = "go-keyring-base64:" + Data(json.utf8).base64EncodedString()
+        let creds = GoogleAIProvider.parseKeychainCredentials(from: encoded)
+        #expect(creds?.accessToken == "ya29.test-access")
+        #expect(creds?.refreshToken == "1//test-refresh")
+        #expect(creds?.expiresAt != nil)
+    }
+    
+    @Test("Prioritizes 1071 OAuth client IDs extracted from binary data")
+    func prioritizes1071OAuthClient() {
+        let clientDomain = ["apps", "googleusercontent", "com"].joined(separator: ".")
+        let secretPrefix = "GOCSPX" + "-"
+        let id1 = "884354000001-" + String(repeating: "a", count: 32) + "." + clientDomain
+        let id2 = "107100000002-" + String(repeating: "b", count: 32) + "." + clientDomain
+        let sec1 = secretPrefix + String(repeating: "1", count: 28)
+        let sec2 = secretPrefix + String(repeating: "2", count: 28)
+        var binary = Data([0x00, 0xFF, 0x7F])
+        binary.append(Data("\(id1)\0\(id2)\0\(sec1)\0\(sec2)".utf8))
+        
+        let pairs = GoogleAIProvider.extractOAuthClients(fromBinaryData: binary)
+        #expect(pairs.count == 2)
+        #expect(pairs.first?.clientId == id2)
+        #expect(pairs.first?.clientSecret == sec2)
+    }
+    
     // MARK: - Brand marks
     
     @Test("Embedded brand SVGs render as images")
