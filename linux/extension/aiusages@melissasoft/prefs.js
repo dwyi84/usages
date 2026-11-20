@@ -255,7 +255,7 @@ export default class AIUsagesPreferences extends ExtensionPreferences {
         const group = new Adw.PreferencesGroup({title: 'AI Usages'});
         page.add(group);
 
-        const version = this.metadata?.['version-name'] ?? '0.2.15';
+        const version = this.metadata?.['version-name'] ?? '0.2.16';
         const versionRow = new Adw.ActionRow({
             title: `AI Usages for Linux v${version}`,
             subtitle: t('GNOME Shell 확장 · Ubuntu 24.04+', 'GNOME Shell extension · Ubuntu 24.04+'),

@@ -60,7 +60,7 @@ export default class AIUsagesExtension extends Extension {
         this._interfaceSignals = [];
         this._lastPercents = new Map();
 
-        this._installedVersion = this.metadata?.['version-name'] ?? '0.2.15';
+        this._installedVersion = this.metadata?.['version-name'] ?? '0.2.16';
         this._updateState = 'idle';
         this._latestVersion = null;
         this._latestTag = null;
@@ -93,11 +93,58 @@ export default class AIUsagesExtension extends Extension {
         this._menuSignal = this._indicator.menu.connect('open-state-changed', (_menu, open) => {
             if (!open)
                 return;
-            this._popup.rebuild();
+            if (this._popupDirty) {
+                this._popupDirty = false;
+                this._popup.rebuild();
+            } else {
+                this._popup.updateStatus();
+            }
             const age = this._stateAge();
-            if (age > this._intervalSeconds())
+            if (age > this._intervalSeconds() && !this._openRefreshId) {
+                this._openRefreshId = GLib.idle_add(GLib.PRIORITY_LOW, () => {
+                    this._openRefreshId = 0;
+                    this.refresh();
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
+        });
+
+        this._popupDirty = false;
+        this._openRefreshId = 0;
+        this._wakeRefreshId = 0;
+
+        this._networkMonitor = Gio.NetworkMonitor.get_default();
+        this._networkSignal = this._networkMonitor.connect('network-changed', (_mon, available) => {
+            if (available && this._stateAge() > this._intervalSeconds())
                 this.refresh();
         });
+
+        try {
+            this._sleepSubId = Gio.DBus.system.signal_subscribe(
+                'org.freedesktop.login1',
+                'org.freedesktop.login1.Manager',
+                'PrepareForSleep',
+                '/org/freedesktop/login1',
+                null,
+                Gio.DBusSignalFlags.NONE,
+                (_conn, _sender, _path, _iface, _signal, params) => {
+                    const [goingToSleep] = params.deepUnpack();
+                    if (goingToSleep)
+                        return;
+                    if (this._wakeRefreshId) {
+                        GLib.source_remove(this._wakeRefreshId);
+                        this._wakeRefreshId = 0;
+                    }
+                    this._wakeRefreshId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 4, () => {
+                        this._wakeRefreshId = 0;
+                        this.refresh(true);
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
+            );
+        } catch (e) {
+            this._sleepSubId = 0;
+        }
 
         for (const key of [
             'refresh-interval',
@@ -132,6 +179,27 @@ export default class AIUsagesExtension extends Extension {
             GLib.source_remove(this._updateResetId);
             this._updateResetId = 0;
         }
+        if (this._openRefreshId) {
+            GLib.source_remove(this._openRefreshId);
+            this._openRefreshId = 0;
+        }
+        if (this._wakeRefreshId) {
+            GLib.source_remove(this._wakeRefreshId);
+            this._wakeRefreshId = 0;
+        }
+        if (this._sleepSubId) {
+            try {
+                Gio.DBus.system.signal_unsubscribe(this._sleepSubId);
+            } catch (e) {
+                // ignore
+            }
+            this._sleepSubId = 0;
+        }
+        if (this._networkSignal && this._networkMonitor) {
+            this._networkMonitor.disconnect(this._networkSignal);
+            this._networkSignal = 0;
+        }
+        this._networkMonitor = null;
         if (this._proc) {
             try {
                 this._proc.force_exit();
@@ -196,7 +264,7 @@ export default class AIUsagesExtension extends Extension {
     }
 
     get currentVersion() {
-        return this._installedVersion ?? this.metadata?.['version-name'] ?? '0.2.15';
+        return this._installedVersion ?? this.metadata?.['version-name'] ?? '0.2.16';
     }
 
     get updateState() {
@@ -235,6 +303,27 @@ export default class AIUsagesExtension extends Extension {
             GLib.source_remove(this._updateResetId);
             this._updateResetId = 0;
         }
+        if (this._openRefreshId) {
+            GLib.source_remove(this._openRefreshId);
+            this._openRefreshId = 0;
+        }
+        if (this._wakeRefreshId) {
+            GLib.source_remove(this._wakeRefreshId);
+            this._wakeRefreshId = 0;
+        }
+        if (this._sleepSubId) {
+            try {
+                Gio.DBus.system.signal_unsubscribe(this._sleepSubId);
+            } catch (e) {
+                // ignore
+            }
+            this._sleepSubId = 0;
+        }
+        if (this._networkSignal && this._networkMonitor) {
+            this._networkMonitor.disconnect(this._networkSignal);
+            this._networkSignal = 0;
+        }
+        this._networkMonitor = null;
 
         this._updateState = 'checking';
         if (this._menuIsOpen())
@@ -819,8 +908,8 @@ export default class AIUsagesExtension extends Extension {
         this._state = payload;
         this._lastError = null;
         this._indicator?.update();
-        if (this._menuIsOpen())
-            this._popup?.scheduleRebuild();
+        this._popupDirty = false;
+        this._popup?.scheduleRebuild();
         if (this._settings?.get_boolean('notify-threshold'))
             this._notifyThresholds(previous, payload);
     }

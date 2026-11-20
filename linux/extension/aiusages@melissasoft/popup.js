@@ -19,7 +19,7 @@ import {
 import {disposeContext} from './panel.js';
 import {errorLabel, t} from './i18n.js';
 
-const APP_VERSION = '0.2.15';
+const APP_VERSION = '0.2.16';
 const POPUP_WIDTH = 520;
 const BUY_ME_A_COFFEE_URL = 'https://buymeacoffee.com/dwyi84d';
 
@@ -180,7 +180,10 @@ class SparklineArea extends St.DrawingArea {
     }
 
     setBars(bars) {
-        this._bars = bars ?? [];
+        const next = bars ?? [];
+        if (next.length === this._bars.length && next.every((v, i) => v === this._bars[i]))
+            return;
+        this._bars = next;
         this.queue_repaint();
     }
 
@@ -304,6 +307,9 @@ export class PopupView {
 
     applyTheme() {
         const isDark = this._extension.isDarkTheme ? this._extension.isDarkTheme() : true;
+        if (this._lastIsDark === isDark)
+            return isDark;
+        this._lastIsDark = isDark;
         if (isDark) {
             this._menu.box.remove_style_class_name('aiusages-menu-light');
             this._menu.box.add_style_class_name('aiusages-menu-dark');
@@ -311,6 +317,8 @@ export class PopupView {
             this._menu.box.remove_style_class_name('aiusages-menu-dark');
             this._menu.box.add_style_class_name('aiusages-menu-light');
         }
+        if (this._headerIcon)
+            this._headerIcon.gicon = headerGIcon(isDark);
         return isDark;
     }
 
@@ -386,9 +394,7 @@ export class PopupView {
     }
 
     updateStatus() {
-        const isDark = this.applyTheme();
-        if (this._headerIcon)
-            this._headerIcon.gicon = headerGIcon(isDark);
+        this.applyTheme();
 
         const state = this._extension.state;
         const version = this._extension.currentVersion ?? APP_VERSION;
