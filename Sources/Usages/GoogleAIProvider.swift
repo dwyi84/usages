@@ -57,17 +57,10 @@ public final class GoogleAIProvider: @unchecked Sendable {
         }
         
         // 1. 직접 경량 REST API 호출 시도 (0.2~0.3초 초고속, 배터리 절약)
+        // Argon이 Gemini Models에 통합되어 REST만으로 전체 그룹(Gemini Models, Claude & GPT)을 모두 조회할 수 있다.
         if let directLimits = await fetchViaDirectRest() {
             cachedLimits = directLimits
             rateLimitUntil = nil
-            
-            // Argon 쿼터가 누락되었고 마지막 전체 fetch 후 30분 이상 경과 시 백그라운드로 agy 보완
-            if shouldRunBackgroundAgy() {
-                Task.detached { [weak self] in
-                    await self?.fetchViaAgyCli()
-                }
-            }
-            
             return buildSnapshot(status: .normal)
         }
         
@@ -204,11 +197,6 @@ public final class GoogleAIProvider: @unchecked Sendable {
         )
     }
     
-    private func shouldRunBackgroundAgy() -> Bool {
-        guard let last = lastAgyFullFetchDate else { return true }
-        return Date().timeIntervalSince(last) > 1800 // 30분
-    }
-    
     // MARK: - Direct REST Engine
     private func fetchViaDirectRest() async -> GoogleAIGroupLimits? {
         guard let credentials = readKeychainCredentials() else { return nil }
@@ -305,7 +293,7 @@ public final class GoogleAIProvider: @unchecked Sendable {
         }
     }
     
-    private func parseRestQuotaJson(data: Data) -> GoogleAIGroupLimits? {
+    func parseRestQuotaJson(data: Data) -> GoogleAIGroupLimits? {
         struct RestResponse: Decodable {
             struct Group: Decodable {
                 let displayName: String?
@@ -326,7 +314,7 @@ public final class GoogleAIProvider: @unchecked Sendable {
             return nil
         }
         
-        var result = cachedLimits
+        var result = GoogleAIGroupLimits()
         
         for g in groups {
             let gName = (g.displayName ?? "").lowercased()
@@ -677,7 +665,7 @@ public final class GoogleAIProvider: @unchecked Sendable {
             return nil
         }
         
-        var result = cachedLimits
+        var result = GoogleAIGroupLimits()
         
         for group in groups {
             let gName = group.name.lowercased()

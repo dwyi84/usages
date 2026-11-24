@@ -185,6 +185,39 @@ struct UsageCorrectnessTests {
         #expect(pairs.first?.clientSecret == sec2)
     }
     
+    @Test("Parses two-group Google policy without standalone Argon group")
+    func parsesTwoGroupGooglePolicy() {
+        let json = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {"bucketId": "gemini-weekly", "remainingFraction": 1.0, "resetTime": "2026-12-01T02:52:08Z"},
+                {"bucketId": "gemini-5h", "remainingFraction": 0.995, "resetTime": "2026-11-24T07:52:08Z"}
+              ]
+            },
+            {
+              "displayName": "Claude and GPT models",
+              "buckets": [
+                {"bucketId": "3p-weekly", "remainingFraction": 0.3005, "resetTime": "2026-11-25T19:27:58Z"},
+                {"bucketId": "3p-5h", "remainingFraction": 1.0, "resetTime": "2026-11-24T07:52:24Z"}
+              ]
+            }
+          ]
+        }
+        """
+        let provider = GoogleAIProvider()
+        let limits = provider.parseRestQuotaJson(data: Data(json.utf8))
+        #expect(limits != nil)
+        #expect(limits?.geminiWeeklyRemainingPercent == 100.0)
+        #expect(abs((limits?.geminiFiveHourRemainingPercent ?? 0) - 99.5) < 0.01)
+        #expect(abs((limits?.claudeWeeklyRemainingPercent ?? 0) - 30.05) < 0.01)
+        #expect(limits?.claudeFiveHourRemainingPercent == 100.0)
+        #expect(limits?.argonWeeklyRemainingPercent == nil)
+        #expect(abs((limits?.overallRemainingPercent ?? 0) - 30.05) < 0.01)
+    }
+    
     // MARK: - Brand marks
     
     @Test("Embedded brand SVGs render as images")

@@ -28,7 +28,6 @@ const GOOGLE_METRICS = [
     ['google_gemini_weekly', t('Gemini 주간', 'Gemini Weekly')],
     ['google_claude_5h', t('Claude & GPT 5시간', 'Claude & GPT 5h')],
     ['google_claude_weekly', t('Claude & GPT 주간', 'Claude & GPT Weekly')],
-    ['google_argon_weekly', t('Gemini 4 Argon 주간', 'Gemini 4 Argon Weekly')],
 ];
 
 const INTERVALS = [60, 180, 300, 900];

@@ -561,7 +561,8 @@ def fetch_snapshot(
             rest_limits, rest_status = fetch_rest_quota(access_token, now=current)
             rate_limited = rest_status == 429
 
-    # Argon is only exposed by the CLI.  Re-run it when the cache is stale.
+    # Gemini 4 Argon is now part of Gemini Models, so REST returns all quota groups.
+    # Only fall back to the slow agy CLI when REST fails.
     agy_limits: Optional[dict[str, Any]] = None
     cached_agy_limits = agy_cache.get("limits")
     if isinstance(cached_agy_limits, dict):
@@ -573,9 +574,7 @@ def fetch_snapshot(
         agy_updated_at = 0.0
     agy_age = current.timestamp() - agy_updated_at
 
-    needs_agy = not rate_limited and (
-        not agy_limits or agy_age > 30 * 60 or (rest_limits is None and agy_age > 10 * 60)
-    )
+    needs_agy = not rate_limited and rest_limits is None and (not agy_limits or agy_age > 10 * 60)
     if needs_agy:
         fresh = fetch_agy_limits()
         if fresh:
@@ -592,9 +591,9 @@ def fetch_snapshot(
         return _snapshot({}, korean=korean, billing_day=billing_day, status_override="rate_limited",
                          error="rate_limited", now=current)
 
-    # REST knows Gemini + Claude; agy supplies Argon (and everything else when
-    # REST is unavailable).  Start from agy and overlay the fresher REST values.
-    limits = merge_limits(agy_limits, rest_limits)
+    # Use REST directly when available so retired groups (e.g. standalone Argon)
+    # don't linger from older caches; fall back to agy when REST is unavailable.
+    limits = dict(rest_limits) if rest_limits else (dict(agy_limits) if agy_limits else {})
 
     if limits:
         error = None if (rest_limits or agy_limits) else "network"
